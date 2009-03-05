@@ -263,7 +263,7 @@ ErrCode commitTransaction(TxnState **txn)
 ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
 {   
     STXDBState *state = (STXDBState*) idxState;
-    //stxbtree_type* dbp = state->dbp;
+    stxbtree_type* dbp = state->dbp;
 
     memcpy(&(state->lastKey) , &(record->key), sizeof(Key));
 
@@ -273,10 +273,10 @@ ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
     
     btinter bit;
     //DBLink *link =  dbLookup;
-    TXNState* txnstate = (TXNState*)txn;
-    stxbtree_type* db  = txnstate->dbp;
-    bit = db->find(record->key);
-    if(bit == db->end()){	
+    //TXNState* txnstate = (TXNState*)txn;
+    
+    bit = dbp->find(record->key);
+    if(bit == dbp->end()){	
 	return KEY_NOTFOUND;
     }else
     {
