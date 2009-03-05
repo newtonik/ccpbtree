@@ -1,0 +1,203 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdarg.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <stx/btree_multimap.h>
+#include <iostream>
+#include "bptree.h"
+
+using namespace std;
+
+FILE *stderrfile;
+pthread_mutex_t ILINK_LOCK = PTHREAD_MUTEX_INITIALIZER;
+//const char NULL_PAYLOAD[MAX_PAYLOAD_LEN + 1];
+
+//list of index DBs
+DBLink *dbLookup;
+//KeyType type = INT;
+ErrCode create(KeyType type, char* name)
+{
+    btree8int_type *dbp;
+    int ret;
+    //lock the dblink
+    if((ret = pthread_mutex_lock(&ILINK_LOCK)) != 0) {
+	cout << "Cannot" << endl;
+    }
+
+    DBLink *link = dbLookup;
+    while (link != NULL) {
+	if(strcmp(name, link->name) == 0) {
+	    break;
+	} else {
+	    link = link->link;
+	}
+
+    }
+    if(link != NULL) {
+	pthread_mutex_unlock(&ILINK_LOCK);
+	return DB_EXISTS;
+    }
+
+    //create a file to store error message for database
+    //(if doesn't already exist)
+    if (stderrfile == NULL) {
+        char errFileName[] = "error.log";
+        stderrfile = fopen(errFileName, "w");
+        if (stderrfile == NULL) {
+            pthread_mutex_unlock(&ILINK_LOCK);
+            return FAILURE;
+        }
+    }
+    
+    //if there is no environment, make one
+   /* if (env == NULL) {
+        ret = p_createEnv();
+        if (ret != SUCCESS) {
+            return ret;
+        }
+    }*/
+    dbp = new btree8int_type;
+    if(dbp == NULL )
+    {
+	return FAILURE;
+
+    }
+    /* Initialize the DB handle */
+   /* if ((ret = db_create(&dbp, env, 0)) != 0) {
+        fprintf(stderrfile, "could not create DB. err = %d\n", ret);
+        pthread_mutex_unlock(&DBLINK_LOCK);
+        return FAILURE;
+    }
+    
+    
+    //set the error file for the DB
+    dbp->set_errfile(dbp, stderrfile);
+    
+    //store the DB info in our db lookup list
+    */
+    //make a new link object
+    DBLink *newLink = new (DBLink);
+    memset(newLink, 0, sizeof(DBLink));
+    
+    //populate it
+    newLink->name = name;
+    newLink->dbp = dbp;
+    newLink->type = type;
+    newLink->link = NULL;
+    //Consider adding errors to log file
+    
+    if (dbLookup == NULL) {
+        dbLookup = newLink;
+    } else {
+        DBLink *thisLink = dbLookup;
+        while (thisLink->link != NULL) {
+            thisLink = thisLink->link;
+        }
+        thisLink->link = newLink;
+    }
+    
+
+    pthread_mutex_unlock(&ILINK_LOCK);
+    return SUCCESS;
+}
+
+ErrCode openIndex(const char *name, IdxState **idxState)
+{
+    int ret;
+    btree8int_type *dbp;
+    //lock the dblink system
+    if ((ret = pthread_mutex_lock(&ILINK_LOCK)) != 0) {
+        printf("can't acquire mutex lock: %d\n", ret);
+    }
+    
+    //look up the DBLink for the index of that name
+    DBLink *link = dbLookup;
+    while (link != NULL) {
+        if (strcmp(name, link->name) == 0) {
+            break;
+        } else {
+            link = link->link;
+        }
+    }
+    
+    //if no link was found, index was never create()d
+    if (link == NULL) {
+        pthread_mutex_unlock(&ILINK_LOCK);
+        return DB_DNE;
+    }
+    
+    //add this thread to the link's thread counter
+    //link->numOpenThreads++;
+    
+    //if numOpenThreads == 1, we need to open the index
+    /*if (link->numOpenThreads == 1) {
+        dbp = link->dbp;
+      */  
+        //set the db to handle duplicates (flag must be set before db is opened)
+        //ret = dbp->set_flags(dbp, DB_DUPSORT); 
+	//multimap
+        
+     /*   
+    //create a BDBState variable for this thread
+    BDBState *state = malloc(sizeof(BDBState));
+    memset(state, 0, sizeof(BDBState));
+    *idxState = (IdxState *) state;
+    state->dbp = link->dbp;
+    state->type = link->type;
+    state->db_name = name;
+    */
+    //unlock the dblink system
+    pthread_mutex_unlock(&ILINK_LOCK);
+    
+    return SUCCESS;
+}
+/**
+ *Not dealing with transcations yet
+ */
+ErrCode beginTransaction(TxnState **txn)
+{
+    return SUCCESS;
+}
+
+/***
+ * Not dealing with transactions yet
+ */
+ErrCode abortTransaction(TxnState **txn)
+{
+
+  return SUCCESS;
+}
+
+/***
+ * Not dealing with transactions yet
+ */
+ErrCode commitTransaction(TxnState **txn)
+{
+
+    return SUCCESS;
+}
+/**
+ * Get the first record, I am going to ignore the transaction values
+ * since we only have one index
+ **/
+ErrCode get(IdxState *idxState, TxnState *txt, Record *record)
+{   
+    //save the key
+    //Key lastKey = new Key;
+    //memcpy(&lastKey, &(record->key), sizeof(key));
+
+    Key* lastKey  = record->key;
+    string data =(char*)record->payload;
+    
+    DBLink *link =  dbLookup;
+    if(link->dbp->exists((record->key->keyval.shortkey)))
+    {	
+	return SUCCESS;
+    }else 
+	return KEY_NOTFOUND;
+   
+}
