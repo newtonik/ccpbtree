@@ -18,78 +18,35 @@ pthread_mutex_t ILINK_LOCK = PTHREAD_MUTEX_INITIALIZER;
 
 
 
-//list of index DBs for  each data type
-DBIntLink  *dbintLookup;
-DBLIntLink *dblinitLookup;
-DBStringLink *dbstringLookup;
+//list of index for  each data type
+DBLink  *dbLookup;
 
-template <typename _keytype>
-ErrCode mycreate(char* name, KeyType ktype)
+
+ErrCode create( KeyType type, char* name)
 {
     int ret = 0;
-    typedef _keytype  _ktype;
-    typedef stx::btree_multimap<_ktype, std::string, std::less<int>, btree_traits_debug<16> > stxbtree_type;
+   
     //lock the dblink
     if((ret = pthread_mutex_lock(&ILINK_LOCK)) != 0) {
 	cout << "Cannot" << endl;
     }
 
-    //get link
-    switch (ktype)
-    {
-	case SHORT:
-	    DBIntLink  *link = dbintLookup;
+    DBLink	*link  = dbLookup;
+
     while (link != NULL) {
 	if(strcmp(name, link->name) == 0) {
 	    break;
 	} else {
 	    link = link->link;
-	}
+	}	
+    }
 
-    }
-    if(link != NULL) {
-	pthread_mutex_unlock(&ILINK_LOCK);
-	return DB_EXISTS;
-    }
-	break;
-	case INT:
-	    DBLIntLink *llink = dblinitLookup;
-    while (llink != NULL) {
-	if(strcmp(name, llink->name) == 0) {
-	    break;
-	} else {
-	    llink = llink->link;
-	}
-
-    }
-    if(link != NULL) {
-	pthread_mutex_unlock(&ILINK_LOCK);
-	return DB_EXISTS;
-    }
-	break;
-	case VARCHAR:
-	  DBStringLink *slink = dbstringLookup;
-    while (slink != NULL) {
-	if(strcmp(name, slink->name) == 0) {
-	    break;
-	} else {
-	    slink = link->link;
-	}
-
-    }
-    if(link != NULL) {
-	pthread_mutex_unlock(&ILINK_LOCK);
-	return DB_EXISTS;
-    }
-	  break;
-	default:
-	return FAILURE;
-    }
 
     if(link != NULL) {
 	pthread_mutex_unlock(&ILINK_LOCK);
 	return DB_EXISTS;
     }
+	
 
     //create a file to store error message for database
     //(if doesn't already exist)
@@ -123,19 +80,22 @@ ErrCode mycreate(char* name, KeyType ktype)
     
     //make a new link object
     DBLink  *newLink = new DBLink;
-    memset(newLink, 0, sizeof(DBLink<stxbtree_type>));
+    memset(newLink, 0, sizeof(DBLink));
     
     //populate it
     newLink->name = name;
-    newLink->stxdb = dbp;
-    newLink->type =  SHORT;
+    newLink->dbp = dbp;
+    newLink->type =  type;
+    newLink->numOpenThreads = 0;
     newLink->link = NULL;
+    newLink->inUse = 0;
+    
     //Consider adding errors to log file
     
     if (dbLookup == NULL) {
         dbLookup = newLink;
     } else {
-        DBLink<stxbtree_type> *thisLink = dbLookup;
+        DBLink *thisLink = dbLookup;
         while (thisLink->link != NULL) {
             thisLink = thisLink->link;
         }
@@ -147,31 +107,11 @@ ErrCode mycreate(char* name, KeyType ktype)
     return SUCCESS;
 }
 
-ErrCode create(KeyType ktype, char* name)
-{   
-    ErrCode ret;
-    switch (ktype)
-    {
-	case SHORT:
-	  ret =  mycreate<int32_t>(name, ktype);
-	break;
-	case INT:
-	    ret = mycreate<int64_t>(name, ktype);
-	break;
-	case VARCHAR:
-	    ret = mycreate<std::string>(name, ktype);
-	break;
-	default:
-	return FAILURE;
-    }
 
-    return  ret;
-}
-/*
 ErrCode openIndex(const char *name, IdxState **idxState)
 {
     int ret;
-    btree8int_type *dbp;
+    stxbtree_type *dbp;
     //lock the dblink system
     if ((ret = pthread_mutex_lock(&ILINK_LOCK)) != 0) {
         printf("can't acquire mutex lock: %d\n", ret);
@@ -194,7 +134,7 @@ ErrCode openIndex(const char *name, IdxState **idxState)
     }
     
     //add this thread to the link's thread counter
-    //link->numOpenThreads++;
+    link->numOpenThreads++;
     
     //if numOpenThreads == 1, we need to open the index
     if (link->numOpenThreads == 1) {
@@ -206,28 +146,99 @@ ErrCode openIndex(const char *name, IdxState **idxState)
         
        
     //create a BDBState variable for this thread
-    BDBState *state = malloc(sizeof(BDBState));
-    memset(state, 0, sizeof(BDBState));
-    *idxState = (IdxState *) state;
-    state->dbp = link->dbp;
-    state->type = link->type;
-    state->db_name = name;
+	STXDBState *state =(STXDBState*)  new STXDBState;
+	memset(state, 0, sizeof(STXDBState));
+	*idxState = (IdxState *) state;
+	state->dbp = link->dbp;
+	state->type = link->type;
+	state->db_name = name;
     
     //unlock the dblink system
-    pthread_mutex_unlock(&ILINK_LOCK);
+	pthread_mutex_unlock(&ILINK_LOCK);
     
-    return SUCCESS;
+	return SUCCESS;
+    }
+    pthread_mutex_unlock(&ILINK_LOCK);
+    return FAILURE;
 }
-*/
 
-/**
- *Not dealing with transcations yet
- */
+
+
+ErrCode closeIndex(IdxState *ident)
+{
+    int ret;
+    STXDBState *state = (STXDBState*)ident;
+    //stxbtree_type *dbp = state->dbp;
+    
+    //lock the dblink system
+    if ((ret = pthread_mutex_lock(&ILINK_LOCK)) != 0) {
+        printf("can't acquire mutex lock: %d\n", ret);
+    }
+    
+    //check to see if the DB currently exists
+    DBLink *prevLink = NULL;
+    DBLink *link = dbLookup;
+    while (link != NULL) {
+        if (strcmp(state->db_name, link->name) == 0) {
+            break;
+        } else {
+            prevLink = link;
+            link = link->link;
+        }
+    }
+    
+    //if the DB isn't in our linked list, it never existed
+    if (link == NULL) {
+        fprintf(stderrfile, "closeIndex called on an index that does not exist\n");
+        pthread_mutex_unlock(&ILINK_LOCK);
+        return DB_DNE;
+    }
+    
+    //decrement the number of threads for whom this index is open
+    link->numOpenThreads--;
+    //remove this DBP from this thread's state
+    state->dbp = NULL;
+    
+    // if there are still threads using this index, don't close it
+    if (link->numOpenThreads > 0) {
+        pthread_mutex_unlock(&ILINK_LOCK);
+        return SUCCESS;
+    }
+    /*
+    printf("closing index %s====================\n",state->db_name); 
+    if ((ret = dbp->close(dbp, 0)) != 0) {
+        fprintf(stderrfile, "could not close index. errno %d\n", ret);
+        pthread_mutex_unlock(&DBLINK_LOCK);
+        return FAILURE;
+    }
+    */
+    if (link->numOpenThreads < 0) {
+        printf("link->numOpenThreads somehow got to < 0. Resetting to 0.\n");
+        link->numOpenThreads = 0;
+    }
+    
+    pthread_mutex_unlock(&ILINK_LOCK);
+    return SUCCESS;    
+}
+
+
 ErrCode beginTransaction(TxnState **txn)
 {
-    return SUCCESS;
+    //int ret;
+    //create the state variable for this transaction
+    TXNState *txne = new TXNState;
+    int * tid = new int;
+    *tid = rand();
+    txne->cursorLink = NULL;
+    
+    txne->tid = tid;
+    *txn = (TxnState*) txne;
+    
+    //    DB_TXN *tid = NULL;a
+      return SUCCESS;
 }
 
+    
 /***
  * Not dealing with transactions yet
  */
@@ -249,19 +260,22 @@ ErrCode commitTransaction(TxnState **txn)
  * Get the first record, I am going to ignore the transaction values
  * since we only have one index
  **/
-/*ErrCode get(IdxState *idxState, TxnState *txt, Record *record)
+ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
 {   
-    //save the key
-    //Key lastKey = new Key;
-    //memcpy(&lastKey, &(record->key), sizeof(key));
+    STXDBState *state = (STXDBState*) idxState;
+    //stxbtree_type* dbp = state->dbp;
 
-    Key lastKey  = record->key;
+    memcpy(&(state->lastKey) , &(record->key), sizeof(Key));
+
+    state->keyNotFound = 0;
+	
     //string data =(char*)record->payload;
     
     btinter bit;
-    DBLink *link =  dbLookup;
-    btree8int_type* db;
-    bit = db->find(5);
+    //DBLink *link =  dbLookup;
+    TXNState* txnstate = (TXNState*)txn;
+    stxbtree_type* db  = txnstate->dbp;
+    bit = db->find(record->key);
     if(bit == db->end()){	
 	return KEY_NOTFOUND;
     }else
@@ -272,7 +286,7 @@ ErrCode commitTransaction(TxnState **txn)
      }
 }
 
-*/
+
 /**
  Retrieve the record following the previous record retrieved by get or
  getNext. If no such call has occurred since the current transaction

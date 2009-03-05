@@ -9,12 +9,6 @@
 
 
 
-
-
-KeyType type = INT;
-
-
-
 template <int Slots>
 struct btree_traits_debug
 {
@@ -25,60 +19,57 @@ struct btree_traits_debug
 };
 
 
-typedef stx::btree_multimap<int32_t, std::string, std::less<int>, btree_traits_debug<16> > btreeshortint_type;
-typedef stx::btree_multimap<int64_t, std::string, std::less<int>, btree_traits_debug<16> > btreeint_type;
-typedef stx::btree_multimap<std::string, std::string, std::less<int>, btree_traits_debug<16> > btreechar_type;
-typedef btreeint_type::const_iterator btinter;
-
-template <typename dbtype>
-struct STXDBState
+struct keyless 
 {
-    dbtype *dbp; //this will be the struct type stx btree
-    KeyType type;
-    const char db_name;
-    uint32_t tid;
-    btinter lasKey;
-    int keyNotFound;
+    bool operator()(const Key& s1, const Key& s2) const
+    {
+	if(s1.type ==  INT)
+	    return s1.keyval.intkey < s2.keyval.intkey;
+	if(s2.type == SHORT)
+	    return s1.keyval.shortkey < s2.keyval.shortkey;
+	if(s2.type == VARCHAR)
+	    return strcmp(s1.keyval.charkey, s2.keyval.charkey) < 0;
+	else
+	    return false;
+    }
 };
 
 
-template <typename dbtype>
+
+typedef stx::btree_multimap<Key, std::string, keyless, btree_traits_debug<16> > stxbtree_type;
+typedef stxbtree_type::const_iterator btinter;
+
+struct STXDBState
+{
+    stxbtree_type *dbp; //this will be the struct type stx btree
+    KeyType type;
+    const char* db_name;
+    uint32_t tid;
+    Key lastKey;
+    int keyNotFound;
+    int inUse;
+};
+
 struct CursorLink
 {   
  //   DBC *cursor;
-    dbtype  *dbp;
     struct CursorLink *cursorLink;
 };
-
+typedef struct
+{
+	  stxbtree_type  *dbp;
+        CursorLink  *cursorLink;
+        int      *tid;
+} TXNState;
 
 //typedef int bool;
 
-//An STX Index in a linked list
-typedef struct DBIntLink
+struct DBLink
 {
     char    *name;
-    btreeshortint_type   *stxdb;
+    stxbtree_type   *dbp;
     KeyType type;
-    struct DBIntLink *link;
-} DBIntLink;
-
-
-typedef struct DBLIntLink
-{
-    char    *name;
-    btreeint_type  *stxdb;
-    KeyType type;
-    struct DBLIntLink *link;
-} DBLIntLink;
-
-
-
-typedef struct DBStringLink
-{
-    char    *name;
-    btreechar_type   *stxdb;
-    KeyType type;
-    struct DBStringLink *link;
-} DBStringLink;
-
-
+    struct DBLink *link;
+    int numOpenThreads;
+    int inUse;
+};
