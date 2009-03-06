@@ -14,8 +14,10 @@ struct btree_traits_debug
 {
         static const bool       selfverify = true;
         static const bool       debug = true;
+	static const bool 	allow_duplicates = false;
         static const int        leafslots = Slots;
         static const int        innerslots = Slots;
+      
 };
 
 

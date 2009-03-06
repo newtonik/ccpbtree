@@ -242,18 +242,19 @@ ErrCode beginTransaction(TxnState **txn)
 /***
  * Not dealing with transactions yet
  */
-ErrCode abortTransaction(TxnState **txn)
+ErrCode abortTransaction(TxnState *txn)
 {
-
+  printf("Do Something\n");
   return SUCCESS;
 }
 
 /***
  * Not dealing with transactions yet
  */
-ErrCode commitTransaction(TxnState **txn)
+ErrCode commitTransaction(TxnState *txn)
 {
 
+  printf("Do Something\n");
     return SUCCESS;
 }
 /**
@@ -267,7 +268,7 @@ ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
 
     memcpy(&(state->lastKey) , &(record->key), sizeof(Key));
 
-    state->keyNotFound = 0;
+
 	
     //string data =(char*)record->payload;
     
@@ -276,12 +277,16 @@ ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
     //TXNState* txnstate = (TXNState*)txn;
     
     bit = dbp->find(record->key);
+
+    //if no record found
     if(bit == dbp->end()){	
-	return KEY_NOTFOUND;
+	    state->keyNotFound = 0;
+	    return KEY_NOTFOUND;
     }else
     {
 	//copy data to payload
 	strcpy(record->payload, bit->second.c_str());
+	state->keyNotFound  = 0;
 	return SUCCESS;
      }
 }
@@ -313,7 +318,45 @@ ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
  DEADLOCK if this call could not complete because of deadlock.
  FAILURE if could not retrieve next record for some other reason.
  */
-ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record);
+ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record)
+{
+    STXDBState* state  = (STXDBState*) idxState;
+    stxbtree_type* dbp = state->dbp;
+
+    btinter bit;
+    //if key wasn't found
+    if(state->keyNotFound == 1)
+    {
+	if(dbp->size() == 0)
+	{
+	    //state->keyNotFound = 0;
+	    return KEY_NOTFOUND;
+	}
+	bit = dbp->begin();
+	//copy data to payload
+	strcpy(record->payload, bit->second.c_str());
+	state->keyNotFound  = 0;
+	return SUCCESS;
+    }
+    else
+    {
+	bit = dbp->find(state->lastKey);
+	//move next
+	bit++;
+	if(bit == dbp->end())
+	{   
+	    return DB_END;
+	}
+	else
+	{   
+	    memcpy(&(record->key), &(bit->first), sizeof(Key));
+	    strcpy(record->payload, bit->second.c_str());
+	    state->keyNotFound  = 0;	 
+	    return SUCCESS;
+	}
+
+    }
+}
 
 /**
  Insert a payload associated with the given key. An identical key can
@@ -336,24 +379,26 @@ ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record);
  DEADLOCK if this call could not complete because of deadlock.
  FAILURE if could not insert entry for some other reason.
  */
-/*ErrCode insertRecord(IdxState *idxState, TxnState *txn, Key *k, const char* payload)
+ErrCode insertRecord(IdxState *idxState, TxnState *txn, Key *k, const char* payload)
 {
 
 	//tree allows duplicates 
-	DBLink *link =  dbLookup;
-	btree8int_type* db;
-	string value = payload;
-	db->insert2(k->keyval.shortkey, value);
-	
+
+	STXDBState* state = (STXDBState*) idxState;
+	stxbtree_type* dbp = state->dbp;
+	std::string value(payload);
+	btinter iter;
+    
+	dbp->insert2(*k, value);
 	return SUCCESS;
 }
-*/
+
 
 /**
  Remove the record associated with the given key from the index
  structure.  If a payload is specified in the Record, then the
  key/payload pair specified is removed. Otherwise, the payload pointer
- is a length 0 string and all records with the given key are removed from the
+ is a length 0 string and all records with the given key are removed from thelll
  database.  If this is called from outside of a transaction, it should
  commit immediately.
 
@@ -368,5 +413,23 @@ ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record);
  DEADLOCK if this call could not complete because of deadlock.
  FAILURE if could not delete record for some other reason.
  */
-ErrCode deleteRecord(IdxState *idxState, TxnState *txn, Record *record);
+ErrCode deleteRecord(IdxState *idxState, TxnState *txn, Record *record)
+{
+
+	
+	STXDBState* state = (STXDBState*) idxState;
+	stxbtree_type* dbp = state->dbp;
+    
+	//determnine if there is a payload
+	if(strlen(record->payload) == 0)
+	{
+	    dbp->erase(record->key);
+	}
+	else 
+	    dbp->erase_one(record->key);
+
+    return SUCCESS;
+
+
+}
 
