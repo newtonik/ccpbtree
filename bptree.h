@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <pthread.h>
-#include <stx/btree_multiset.h>
+#include <stx/btree_multimap.h>
 //sigmod server file
 #include "server.h"
 
@@ -14,10 +14,8 @@ struct btree_traits_debug
 {
         static const bool       selfverify = true;
         static const bool       debug = true;
-	static const bool 	allow_duplicates = false;
         static const int        leafslots = Slots;
-        static const int        innerslots = Slots;
-      
+        static const int        innerslots = Slots;     
 };
 
 
@@ -39,7 +37,7 @@ struct keyless
 
 
 typedef stx::btree_multimap<Key, std::string, keyless, btree_traits_debug<16> > stxbtree_type;
-typedef stxbtree_type::const_iterator btinter;
+typedef stxbtree_type::iterator btinter;
 
 struct STXDBState
 {
@@ -59,9 +57,10 @@ struct CursorLink
 };
 typedef struct
 {
-	  stxbtree_type  *dbp;
+	stxbtree_type  *dbp;
         CursorLink  *cursorLink;
-        int      *tid;
+	int status;
+	uint32_t tid;
 } TXNState;
 
 //typedef int bool;

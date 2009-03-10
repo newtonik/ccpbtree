@@ -295,9 +295,10 @@ int main(void)
         return EXIT_FAILURE;
     }
     
-    if (pthread_create(&sec_test_thread, NULL, secondary_index_func, NULL) != 0) {
-        return EXIT_FAILURE;
-    }
+//  if (pthread_create(&sec_test_thread, NULL, secondary_index_func, NULL) != 0) {
+ 
+  //  return EXIT_FAILURE;
+   // }
    
     /*
      Expected initial state at this point is that the primary_index is completely empty.
@@ -435,7 +436,7 @@ first_txn:
     //getNext should return (c,1)
     memset(&record, 0, sizeof(Record));
     if ((errCode = getNext(idx, txn, &record)) != SUCCESS) {
-        printf("failed to getNext\n");
+        printf("failed to getNext c1\n");
         if (errCode == DEADLOCK) {
             if ((errCode = abortTransaction(txn)) != SUCCESS) {
                 printf("could not abort deadlocked transaction\n");

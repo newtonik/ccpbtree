@@ -4,7 +4,7 @@ all: bptree.o
 	g++ -o bpbtree.o
 lib: bptree.cc bptree.h
 	g++ -fPIC -shared  bptree.cc -o lib.so
-contest: lib.so
+contest: lib
 	 gcc unittests.c ./lib.so -pthread -o contest
 clean:
 	rm *.o lib.so bptree

@@ -227,13 +227,14 @@ ErrCode beginTransaction(TxnState **txn)
     //int ret;
     //create the state variable for this transaction
     TXNState *txne = new TXNState;
-    int * tid = new int;
-    *tid = rand();
+    
+   
     txne->cursorLink = NULL;
     
-    txne->tid = tid;
+    txne->tid = rand();
+    txne->status = 1;
     *txn = (TxnState*) txne;
-    
+    printf("Transaction started\n");
     //    DB_TXN *tid = NULL;a
       return SUCCESS;
 }
@@ -244,7 +245,11 @@ ErrCode beginTransaction(TxnState **txn)
  */
 ErrCode abortTransaction(TxnState *txn)
 {
-  printf("Do Something\n");
+  TXNState* txne = (TXNState*) txn;
+
+  txne->status = -1;
+  
+  printf("Transaction Aborted\n");
   return SUCCESS;
 }
 
@@ -253,8 +258,12 @@ ErrCode abortTransaction(TxnState *txn)
  */
 ErrCode commitTransaction(TxnState *txn)
 {
+    
+    TXNState* txne = (TXNState*) txn;
 
-  printf("Do Something\n");
+    txne->status = -1;
+  
+    printf("Transaction Commited\n");
     return SUCCESS;
 }
 /**
@@ -266,9 +275,16 @@ ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
     STXDBState *state = (STXDBState*) idxState;
     stxbtree_type* dbp = state->dbp;
 
+    
+    TXNState* txne = (TXNState*) txn;
+    if(txne->tid != state->tid) {
+	state->tid = txne->tid;
+	 memset(&(state->lastKey), 0, sizeof(Key));
+	state->keyNotFound = 1;
+    }
+
     memcpy(&(state->lastKey) , &(record->key), sizeof(Key));
-
-
+    state->keyNotFound  = 0;
 	
     //string data =(char*)record->payload;
     
@@ -280,13 +296,12 @@ ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
 
     //if no record found
     if(bit == dbp->end()){	
-	    state->keyNotFound = 0;
+	    state->keyNotFound = 1;
 	    return KEY_NOTFOUND;
     }else
     {
 	//copy data to payload
 	strcpy(record->payload, bit->second.c_str());
-	state->keyNotFound  = 0;
 	return SUCCESS;
      }
 }
@@ -325,16 +340,39 @@ ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record)
 
     btinter bit;
     //if key wasn't found
+    TXNState* txne = (TXNState*) txn;
+    if(txne->tid != state->tid){
+	state->tid = txne->tid;
+    memset(&(state->lastKey), 0, sizeof(Key));
+    state->keyNotFound = 1;
+     bit = dbp->begin();
+     if(bit != dbp->end())
+     {
+	
+
+	    memcpy(&(record->key), &(bit->first), sizeof(Key));
+	    memcpy(&(state->lastKey), &(bit->first), sizeof(Key));
+	    strcpy(record->payload, bit->second.c_str());
+	    state->keyNotFound  = 0;	 
+	    return SUCCESS;
+	}
+
+     }
+    
     if(state->keyNotFound == 1)
     {
 	if(dbp->size() == 0)
 	{
 	    //state->keyNotFound = 0;
-	    return KEY_NOTFOUND;
+	    return DB_END;
 	}
-	bit = dbp->begin();
+	//bit = dbp->begin();
 	//copy data to payload
+	bit = dbp->find(state->lastKey);
+	//move next
+	bit++;
 	strcpy(record->payload, bit->second.c_str());
+	//memcpy(&(state->lastKey) , &(record->key), sizeof(Key));
 	state->keyNotFound  = 0;
 	return SUCCESS;
     }
@@ -350,6 +388,7 @@ ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record)
 	else
 	{   
 	    memcpy(&(record->key), &(bit->first), sizeof(Key));
+	    memcpy(&(state->lastKey), &(bit->first), sizeof(Key));
 	    strcpy(record->payload, bit->second.c_str());
 	    state->keyNotFound  = 0;	 
 	    return SUCCESS;
@@ -382,14 +421,21 @@ ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record)
 ErrCode insertRecord(IdxState *idxState, TxnState *txn, Key *k, const char* payload)
 {
 
-	//tree allows duplicates 
-
 	STXDBState* state = (STXDBState*) idxState;
 	stxbtree_type* dbp = state->dbp;
 	std::string value(payload);
-	btinter iter;
-    
-	dbp->insert2(*k, value);
+	std::pair<btinter, btinter> range; 
+	range = dbp->equal_range(*k);
+
+	for(btinter i=range.first; i != range.second; ++i)
+	{
+		if(value == i->second)
+		    return ENTRY_EXISTS;
+	}
+	btinter inres = dbp->insert2(*k, value);
+	
+	//memcpy(&(state->lastKey) , k, sizeof(Key));
+
 	return SUCCESS;
 }
 
@@ -402,7 +448,6 @@ ErrCode insertRecord(IdxState *idxState, TxnState *txn, Key *k, const char* payl
  database.  If this is called from outside of a transaction, it should
  commit immediately.
 
- @param idxState The state variable for this thread
  @param txn The transaction state to be used (or NULL if not in a transaction)
  @param record Record struct containing a Key and a char* payload 
  (or NULL pointer) describing what is to be deleted
