@@ -1,10 +1,10 @@
-bptree.o: bptree.cc server.h bptree.h
-	g++ -Wall -c bptree.cc
-all: bptree.o
-	g++ -o bpbtree.o
+btree.o: btree.cc btree.h
+	g++ -Wall -c btree.cc
+all: btree.o
+	g++ -o btree.o
 lib: bptree.cc bptree.h
 	g++ -fPIC -shared  bptree.cc -o lib.so
 contest: lib
 	 gcc unittests.c ./lib.so -pthread -o contest
 clean:
-	rm *.o lib.so contest
+	rm *.o
