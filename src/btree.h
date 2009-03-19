@@ -14,6 +14,7 @@
 #define TREE_ASSERT(x)  do { assert(x); } while(0)
 
 
+
 #endif
 
 using namespace std;
@@ -35,6 +36,7 @@ public:
     typedef  _Compare  key_compare;
 
 private:
+        node* root;
     //D-value of the tree, leaf node will always can hold 2d keys.
     static const unsigned short bt_nodenum;
     //Number of nodes in the tree
@@ -227,7 +229,7 @@ private:
 
     /// Using template specialization select the correct converter used by the
     /// iterators
-    typedef btree_pair_to_value<value_type, pair_type> pair_to_value_type;
+    typedef btree_pair_to_value<pair_type, pair_type> pair_to_value_type;
 
 
 public:
@@ -257,10 +259,10 @@ public:
         typedef typename btree::pair_type               pair_type;
 
         /// Reference to the value_type. STL required.
-        //typedef value_type&             reference;
+        typedef pair_type&             reference;
 
         /// Pointer to the value_type. STL required.
-        //typedef value_type*             pointer;
+        typedef pair_type*             pointer;
 
         /// STL-magic iterator category
         //typedef std::bidirectional_iterator_tag iterator_category;
@@ -291,7 +293,7 @@ public:
 
         /// Evil! A temporary value_type to STL-correctly deliver operator* and
         /// operator->
-        //mutable value_type              temp_value;
+        mutable pair_type              temp_value;
 
         // The macro BTREE_FRIENDS can be used by outside class to access the B+
         // tree internals. This was added for wxBTreeDemo to be able to draw the
@@ -437,14 +439,14 @@ public:
 
     //public methods
 public:
-    node* root;
+
     inline btree()
     {
-	root = NULL;
+	btree::root = NULL;
     }
     inline node* getRoot()
     {
-	return root;
+	return btree::root;
     }
     //size, this will return the number of data values in the treee
     int size();
@@ -465,7 +467,7 @@ public:
     /**
      *Find Key in tree.
      **/
-    inline bool find(keytype k)
+    inline iterator  find(keytype k)
     {
 	int i = 0;
 	node* curNode = root;
@@ -505,19 +507,19 @@ public:
 	{
 	    if(key_compare(curNode->keySlots[i], k) == 0)
 	    {
-		return true;
+		return iterator(curNode, i);
 	    }
 	}
 	
 
-	return false;
+	return end();
     }
     /**
      *  just calls find and returns a bool the key exists
      **/
     inline bool exists(keytype k)
     {
-        if(find(k) != null)
+        if(find(k) != NULL)
             return true;
 
         return false;
@@ -526,7 +528,7 @@ public:
     inline bool insert(keytype k, data_type data)
     {
 
-
+        return true;
     }
 private:
 
