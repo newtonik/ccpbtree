@@ -1,5 +1,5 @@
 btree.o: btree.cc btree.h
-	g++ -Wall -c btree.cc
+	g++ -Wall -fpermissive -c btree.cc
 all: btree.o
 	g++ -o btree.o
 lib: bptree.cc bptree.h
