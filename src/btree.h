@@ -36,6 +36,11 @@ class btree {
         //Key comparison function
         typedef _Compare key_compare;
 
+        class iterator;
+        class const_iterator;
+        class reverse_iterator;
+        class const_reverse_iterator;
+
     private:
 
         static const unsigned short bt_nodenum;
@@ -223,11 +228,11 @@ public:
     /**
      *Find Key in tree.
      **/
-    inline iterator find(keytype k) {
+    inline std::pair<iterator, bool> find(keytype k) {
         int i = 0;
         node* curNode = getRoot;
         keytype* ki = NULL;
-
+	std::pair<iterator, bool> ret;
         if (btree::empty())
             return false;
 
@@ -253,12 +258,13 @@ public:
         //if we are out of the loop it means we have reached a leaf node, return false
         for (i = 0; i < curNode.keyCount(); i++) {
             if (key_compare(curNode->keySlots[i], k) == 0) {
-                return iterator(curNode, i);
+                return std::pair<iterator, bool>(iterator(curNode, i), true);
             }
         }
-
-
-        return end();
+	if(i > 0)
+	    return std::pair<iterator, bool>(iterator(curNode, i-1), false);
+	else
+	    return std::pair<iterator, bool>(end(), false);
     }
 
     /**
@@ -273,7 +279,8 @@ public:
     }
 
     inline bool insert(keytype k, data_type data) {
-
+	if (find(k) != NULL)
+	    
         return true;
     }
     private:
@@ -323,11 +330,6 @@ public:
 
     public:
         // *** Iterators and Reverse Iterators
-
-        class iterator;
-        class const_iterator;
-        class reverse_iterator;
-        class const_reverse_iterator;
 
         /// STL-like iterator object for B+ tree items. The iterator points to a
         /// specific slot number in a leaf.
