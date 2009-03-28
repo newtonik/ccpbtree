@@ -67,7 +67,7 @@ class btree {
             //if its a leafnode
             bool isleafnode;
             bool isrootnode;
-
+	    node* parent;
             inline bool isleaf() const {
                 return isleafnode;
             }
@@ -93,6 +93,7 @@ class btree {
                 node::slots = bt_innernodemax;
                 node::leafnode = false;
                 firstChild = NULL;
+		node::parent = NULL;
                 keySlots = new keytype[node::slots];
             }
 
@@ -119,23 +120,137 @@ class btree {
                 return true;
             }
 
-            inline bool findKey(keytype k) {
+            inline int findKey(keytype k) {
                 for (int i = 0; i < node::slotsinuse; i++)
                     if (keySlots[i] == k)
-                        return true;
-                return false;
+		    {
+			    return i;
+		    }
+                return -1;
             }
 
-            inline innerngroup * getChild(int i) {
+            inline innerNode* getChild(int i) {
                 if (firstChild == NULL)
                     return NULL;
                 else
-                    return firstChild.group[0];
+                    return firstChild.group[i];
 
             }
+	    inline int insertKeyAt(keytype k, int index)
+	    {
+		//int old = node:slotsinuse;
+		int max = node::keyCount()-1;
+		if(index >= node::slots || index < 0) {
+		    return -1;
+		}//if there are no keys or position is at end, a simple entry. 
+		if(node::keyCount() == 0 || (node::keyCount() <= index < node::slots))
+		{
+		    keySlots[index] = k;
+		    node::slotsinuse++;
+		    return 1;
+		}
+		else if( (index) <= node::keyCount())
+		{
+		    //loop through array to move keys to create space 
+		    //for new key in position index
+		    for(int i=max+1; i > index; i--)
+		    {
+			keySlots[i] = keySlots[i-1];
+		    }
+		      
+		//insert the new key
+		keySlots[index] = k; 
+		node::slotsinuse++;
+
+		return 1;
+		}
+	    }
+	    /**
+	     *Insert Child at index given. 
+	     * */
+	    inline int insertChildAt(innerNode n, int index)
+	    {
+		//check if its out of bounds
+		if(index > node::slots || index < 0)
+		{
+		    printf("Array of of bounds, %d in array of size %d\n", index, node::slots);
+		    return -1;
+		}
+		//if this is the first child create a new child group
+		if(firstChild == NULL)
+		{
+		   firstChild = new innerngroup;
+		   firstChild->initialize();
+		}
+	    
+		firstChild->group[index] = n;
+		return 0;
+		return -1;
+	    }
+	    /**
+	    * insert pair into node
+	    * */
+	    inline int insertpair(keytype k, node* child)
+	    {
+
+		if(k == NULL || child == NULL) 
+		{
+		    printf("Cannot insert null keys or data\n");
+		    return -1;
+		}
+		assert(node::slotsinuse < node::slots);
+		int loc = findKey(k);
+
+		if(loc >= 0)
+		{
+		    insertKeyAt(k, loc);
+		    insertChildAt(child, loc);
+		}
+		else
+		{
+		    printf("cannot insert pair\n");
+		    return loc;
+		}
+		
+	    }
+	    /**
+	     *Free all keys and children in node
+	     * */
+	    void freeNode(innerNode* n)
+	    {
+		for(int i = 0; i < node::keyCount(); i++)
+		{
+		    delete n->keySlots[i];
+		}
+		delete n->keySlots;
+		
+		if(firstChild != NULL)
+		{
+		    firstChild->free_group();
+		}
+	    }
 
         };
 
+        struct innerngroup {
+            innerNode * group[bt_innernodemax];
+
+            inline void initialize() {
+                group = new innerNode[bt_innernodemax];
+		for(int i = 0; i < bt_innernodemax; i++)
+		{
+		    group[i] = NULL;
+		}
+            }
+	    inline void free_group()
+	    {
+		for(int i=0; i < bt_leafnodemax; i++)
+		    delete group[i];
+		
+	    }
+        };
+
+	
         //inherit node for leaf node
 
         struct leafNode : public node {
@@ -152,6 +267,7 @@ class btree {
                 node::slots = bt_leafnodemax;
                 node::leafnode = true;
                 prevLeaf = nextLeaf = NULL;
+		node::parent = NULL;
                 dataSlots = new data_type[node::slot];
                 keySlots = new keytype[node::slot];
             }
@@ -180,26 +296,59 @@ class btree {
                 return (node::slotsinuse < bt_leafnodemin);
             }
 
-            inline bool insertData(data_type * data) {
-                for (int i = 0; i < node::slotsinuse; i++) {
+            inline bool insertDataAt(data_type* data, int i) {
+		if(i >= bt_leafnodemax)
+		{
+		    return false;
+		}
+		else
+		{
+		
+		    dataSlots[i] = data;
+		}
+		    
                     //dosomething
-                }
+               
                 return false;
             }
+	    inline int insertKeyAt(keytype k, int index)
+	    {
+		//int old = node:slotsinuse;
+		int max = node::keyCount()-1;
+		if(index >= node::slots || index < 0) {
+		    return -1;
+		}//if there are no keys or position is at end, a simple entry. 
+		if(node::keyCount() == 0 || (node::keyCount() <= index < node::slots))
+		{
+		    keySlots[index] = k;
+		    node::slotsinuse++;
+		    return 1;
+		}
+		else if( (index) <= node::keyCount())
+		{
+		    //loop through array to move keys to create space 
+		    //for new key in position index
+		    for(int i=max+1; i > index; i--)
+		    {
+			keySlots[i] = keySlots[i-1];
+		    }
+		      
+		//insert the new key
+		    keySlots[index] = k; 
+		    node::slotsinuse++;
+		    
+
+		return 1;
+		}
+	    }
+/*
         };
 
-        struct innerngroup {
-            innerNode * group[bt_innernodemax];
-
-            inline void initialize() {
-                group = new innerNode[bt_innernodemax];
-            }
-        };
 
         struct leafngroup {
         };
 
-
+*/
     //public methods
 private:
         node* root;
@@ -271,21 +420,110 @@ public:
      *  just calls find and returns a bool the key exists
      **/
     inline bool exists(keytype k) {
-        if (find(k) != NULL)
-            return true;
+	std::pair<iterator, bool> ret;
+	    ret = find(k);
+    
+	    return ret.second;
+                
 
-        return false;
+       // return false;
 
     }
 
-    inline bool insert(keytype k, data_type data) {
-	if (find(k) != NULL)
-	    
+    std::pair<iterator, bool> insert(keytype k, data_type data) {
+	std::pair<iterator, bool> ret;
+	node* n = NULL;
+
+	if(root == NULL) {
+
+	    makeroot(k, data);
+	    return ret(iterator(root, 0), true);
+	}
+	ret = find(k);
+	
+	n = ret.first;
+
+	assert(n->isleafnode());
+	if(n->insertpair(k, data) < 0)
+	{
+	    //leafnode is full
+	    if(n->keyCount() == bt_innernodemax)
+	    {
+		//this will lead to a split of the leaf node. 
+		leafNode* ln = new leafNode;
+		leafNode* lp = new leafNode;
+		ln->initialize();
+		lp->initialize();
+		//copy half of the keys/tuple pairs to the new leaf node
+
+		for(int i = 0; i < n->keyCount(); i++)
+		{
+		    //insert first half in l, then second half in lp
+		    if(i < (n->keyCount()/2))
+			ln->insertpair(n->keySlots[i], n->dataSlots[i]);
+		    else
+			lp->insertpair(n->keySlots[i], n->dataSlots[i]);
+
+		}
+		keytype* kp = lp->keySlots[0];
+		if(n->parent == NULL)
+		{
+		    assert(n->isrootnode());
+		    //makeroot(middlekey, n, ln);
+		}
+		else
+		{
+		    //key is pushed up to parent.
+		    insert_in_parent(lp, kp, ln);
+		}
+
+	    }
+
+	}
         return true;
     }
-    private:
+    void makeroot(keytype k, data_type data)
+    {
+	root = new leafNode;
+	root->initialize();
 
-    void insert_in_parent(node* N, keytype k, node* Nprime);
+	root.insertpair(k, data);
+    }
+    private:
+    /**
+     *This function is used when adding a tuple that requires splitting of the node. 
+     *
+     * */
+    void insert_in_parent(node* N, keytype k, node* Nprime)
+    {
+	innerNode* tnode = NULL;
+	innerNode* p = N->parent;
+	//initialize node
+	tnode->initialize();
+	if(!p->isfull())
+	    p->insertpair(k, Nprime);
+	//if the node is full split it.
+	else 
+	{
+	    tnode = new innerNode;
+	    for(int i = 0; i < p->keyCount(); i++)
+	    {
+		if(i < (p->keyCount()/2+1))
+		{
+		    tnode->keySlots[i] = p->keySlots[i];
+		    tnode->firstChild.group[i] = p->firstChild.group[i];
+		    tnode->node::slotsinuse++;
+		    p->keySlots[i] = NULL;
+		    p->firstChild.group[i] = NULL;
+		    p->slotsinuse--;
+		}
+	    }
+
+	
+	}
+
+
+    }
 
     private:
         // *** Template Magic to Convert a pair or key/data types to a value_type
