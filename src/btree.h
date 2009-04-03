@@ -54,6 +54,8 @@ class btree {
         static const unsigned short bt_innernodemax = _nodeslots;
         //Min iiner node data slots
         static const unsigned short bt_innernodemin = _nodeslots / 2;
+	//keycompare
+	key_compare  keyless;
 
     private:
         struct innerngroup;
@@ -83,18 +85,19 @@ class btree {
 
         struct innerNode : public node {
             //slots for keys....inner nodes only have slots of keys and pointers
-            keytype * keySlots[node::slots];
+            keytype  keySlots[bt_innernodemax];
             //pointer to the first child, this is the pointer to the main segment
-            innerngroup* firstChild;
+            innerNode* firstChild[bt_innernodemax+1];
             //number of child nodes present, max can be node:slots + 1
             int numChildren;
 
             inline void initialize() {
                 node::slots = bt_innernodemax;
-                node::leafnode = false;
-                firstChild = NULL;
+                node::isleafnode = false;
+                //firstChild = NULL;
 		node::parent = NULL;
-                keySlots = new keytype[node::slots];
+                //keySlots = new keytype[node::slots];
+		//firstChild = NULL;
             }
 
             inline bool equal(const innerNode & n) {
@@ -130,20 +133,23 @@ class btree {
             }
 
             inline innerNode* getChild(int i) {
+		if( i < 0 || i > node::slotsinuse)
+		    return NULL;
                 if (firstChild == NULL)
                     return NULL;
                 else
-                    return firstChild.group[i];
+                    return firstChild[i];
 
             }
 	    inline int insertKeyAt(keytype k, int index)
 	    {
 		//int old = node:slotsinuse;
-		int max = node::keyCount()-1;
+		int max = node::keyCount();
+		max = max - 1;
 		if(index >= node::slots || index < 0) {
 		    return -1;
 		}//if there are no keys or position is at end, a simple entry. 
-		if(node::keyCount() == 0 || (node::keyCount() <= index < node::slots))
+		if((node::keyCount() == 0) || ((node::keyCount() <= index) && (index < node::slots)))
 		{
 		    keySlots[index] = k;
 		    node::slotsinuse++;
@@ -164,11 +170,12 @@ class btree {
 
 		return 1;
 		}
+		return -1;
 	    }
 	    /**
 	     *Insert Child at index given. 
 	     * */
-	    inline int insertChildAt(innerNode n, int index)
+	    inline int insertChildAt(innerNode* n, int index)
 	    {
 		//check if its out of bounds
 		if(index > node::slots || index < 0)
@@ -176,30 +183,28 @@ class btree {
 		    printf("Array of of bounds, %d in array of size %d\n", index, node::slots);
 		    return -1;
 		}
-		//if this is the first child create a new child group
-		if(firstChild == NULL)
-		{
-		   firstChild = new innerngroup;
-		   firstChild->initialize();
-		}
-	    
-		firstChild->group[index] = n;
+		
+		firstChild[index] = n;
+		n->parent = this;
+
 		return 0;
-		return -1;
+		//return -1;
 	    }
+
+
 	    /**
 	    * insert pair into node
 	    * */
-	    inline int insertpair(keytype k, node* child)
+	    inline int insertpair(keytype k, innerNode* child)
 	    {
 
-		if(k == NULL || child == NULL) 
+		if((child == NULL)) 
 		{
-		    printf("Cannot insert null keys or data\n");
+		    printf("Cannot insert null keys or nodes\n");
 		    return -1;
 		}
 		assert(node::slotsinuse < node::slots);
-		int loc = findKey(k);
+		int loc = innerNode::findKey(k);
 
 		if(loc >= 0)
 		{
@@ -211,7 +216,7 @@ class btree {
 		    printf("cannot insert pair\n");
 		    return loc;
 		}
-		
+		return -1;
 	    }
 	    /**
 	     *Free all keys and children in node
@@ -220,14 +225,11 @@ class btree {
 	    {
 		for(int i = 0; i < node::keyCount(); i++)
 		{
-		    delete n->keySlots[i];
+		    delete n->firstChild[i];
 		}
-		delete n->keySlots;
+	    
 		
-		if(firstChild != NULL)
-		{
-		    firstChild->free_group();
-		}
+	    
 	    }
 
         };
@@ -242,6 +244,10 @@ class btree {
 		    group[i] = NULL;
 		}
             }
+	    innerngroup* getNodeGroup()
+	    {
+		return group;
+	    }
 	    inline void free_group()
 	    {
 		for(int i=0; i < bt_leafnodemax; i++)
@@ -255,8 +261,8 @@ class btree {
 
         struct leafNode : public node {
             //keys for leaf nodes
-            keytype * keySlots[node::slot];
-            data_type * dataSlots[node::slot];
+            keytype  keySlots[bt_leafnodemax];
+            data_type*  dataSlots;
 
             //keep track of the next and previous nodes
             //They will be helpful for range queries
@@ -265,11 +271,11 @@ class btree {
 
             inline void initialize() {
                 node::slots = bt_leafnodemax;
-                node::leafnode = true;
+                node::isleafnode = true;
                 prevLeaf = nextLeaf = NULL;
 		node::parent = NULL;
-                dataSlots = new data_type[node::slot];
-                keySlots = new keytype[node::slot];
+                dataSlots = new data_type[bt_leafnodemax];
+                //keySlots = new keytype[node::slot];
             }
 
             inline bool equal(const leafNode & n) {
@@ -296,15 +302,24 @@ class btree {
                 return (node::slotsinuse < bt_leafnodemin);
             }
 
-            inline bool insertDataAt(data_type* data, int i) {
-		if(i >= bt_leafnodemax)
+            inline int findKey(keytype k) {
+                for (int i = 0; i < node::slotsinuse; i++)
+                    if (keySlots[i] == k)
+		    {
+			    return i;
+		    }
+                return -1;
+
+	    }
+            inline bool insertDataAt(data_type data, int index) {
+		if(index >= bt_leafnodemax || index < 0)
 		{
 		    return false;
 		}
 		else
 		{
 		
-		    dataSlots[i] = data;
+		    dataSlots[index] = data;
 		}
 		    
                     //dosomething
@@ -315,10 +330,10 @@ class btree {
 	    {
 		//int old = node:slotsinuse;
 		int max = node::keyCount()-1;
-		if(index >= node::slots || index < 0) {
+		if((index >= node::slots) || (index < 0)) {
 		    return -1;
 		}//if there are no keys or position is at end, a simple entry. 
-		if(node::keyCount() == 0 || (node::keyCount() <= index < node::slots))
+		if((node::keyCount() == 0) || ((node::keyCount() <= index) && (index < node::slots)))
 		{
 		    keySlots[index] = k;
 		    node::slotsinuse++;
@@ -340,18 +355,37 @@ class btree {
 
 		return 1;
 		}
+		return 1;
 	    }
-/*
+	    inline int insertpair(keytype k, data_type data)
+	    {
+		if(!(k))
+		{
+		    printf("Cannot insert, either the key or data is a NULL value\n");
+		    return -1;
+		}
+		else 
+		{
+		   int loc = leafNode::findKey(k);
+		   if (loc < 0) 
+		       return loc;
+
+		   insertKeyAt(k, loc);
+		   insertDataAt(data, loc);
+		}
+		return 1;
+	    }	
+
         };
 
-
+/*
         struct leafngroup {
         };
 
 */
     //public methods
 private:
-        node* root;
+        leafNode* root;
         //D-value of the tree, leaf node will always can hold 2d keys.
         leafNode* tailleaf;
         leafNode* headleaf;
@@ -362,7 +396,12 @@ public:
     //size, this will return the number of data values in the treee
     int size();
     //returns true if there is a least 1 data/key value in the tree
-    bool empty();
+    inline bool empty()
+    {
+	if (btree::root == NULL)
+	    return true;
+	return false;
+    }
     //get leaf slot size
     int keyslotsize();
     //get node slot size
@@ -377,20 +416,21 @@ public:
     /**
      *Find Key in tree.
      **/
-    inline std::pair<iterator, bool> find(keytype k) {
+    inline std::pair<iterator , bool> find(keytype k) {
         int i = 0;
-        node* curNode = getRoot;
+        node* rootNode = getRoot();
         keytype* ki = NULL;
 	std::pair<iterator, bool> ret;
         if (btree::empty())
-            return false;
+            return std::pair<iterator, bool> (end(), false);
 
-        while (!curNode->isleaf()) {
-            for (i = 0; i < curNode.keyCount(); i++) {
-                TREE_PRINT("looking for key " << curNode << "and at index" << i);
-                if (key_compare(curNode->keySlots[i], k) > 0) {
+	innerNode* curNode = static_cast<innerNode*>(rootNode);
+        while (!rootNode->isleaf()) {
+            for (i = 0; i < curNode->keyCount(); i++) {
+               // TREE_PRINT("looking for key " << k << "and at index" << i);
+                if (keyless(curNode->keySlots[i], k) > 0) {
                     //found a key that is greater than the look being searched
-                    ki = curNode->keySlots[i];
+                    ki = &(curNode->keySlots[i]);
                     break;
                 }
             }
@@ -398,20 +438,21 @@ public:
             if (ki == NULL) {
                 if (curNode->numChildren > 0)
                     curNode = curNode->getChild(curNode->numChildren - 1);
-                TREE_PRINT("returning node child " << curNode->numChildren - 1);
+                //TREE_PRINT("returning node child " << curNode->numChildren - 1);
             } else {
                 curNode = curNode->getChild(i);
 
             }
         }
-        //if we are out of the loop it means we have reached a leaf node, return false
-        for (i = 0; i < curNode.keyCount(); i++) {
-            if (key_compare(curNode->keySlots[i], k) == 0) {
-                return std::pair<iterator, bool>(iterator(curNode, i), true);
+	leafNode* lNode = static_cast<leafNode*>(rootNode);
+        //if we are out of the following loop it means we have reached a leaf node, return false
+        for (i = 0; i < lNode->keyCount(); i++) {
+            if (keyless(lNode->keySlots[i], k) == 0) {
+                return std::pair<iterator, bool>(iterator(lNode, i), true);
             }
         }
 	if(i > 0)
-	    return std::pair<iterator, bool>(iterator(curNode, i-1), false);
+	    return std::pair<iterator, bool>(iterator(lNode, i-1), false);
 	else
 	    return std::pair<iterator, bool>(end(), false);
     }
@@ -432,19 +473,22 @@ public:
 
     std::pair<iterator, bool> insert(keytype k, data_type data) {
 	std::pair<iterator, bool> ret;
-	node* n = NULL;
+	iterator iter;
+	leafNode* n = NULL;
 
 	if(root == NULL) {
 
 	    makeroot(k, data);
-	    return ret(iterator(root, 0), true);
+	     ret = std::pair<iterator, bool>(iterator(root, 0), true);
 	}
 	ret = find(k);
 	
-	n = ret.first;
+	if(ret.second)
+	    iter = ret.first;
 
-	assert(n->isleafnode());
-	if(n->insertpair(k, data) < 0)
+	n =(leafNode*)  iter.getleafNode();
+	
+	if(!(n->insertpair(k, data)))
 	{
 	    //leafnode is full
 	    if(n->keyCount() == bt_innernodemax)
@@ -465,10 +509,10 @@ public:
 			lp->insertpair(n->keySlots[i], n->dataSlots[i]);
 
 		}
-		keytype* kp = lp->keySlots[0];
+		keytype kp = lp->keySlots[0];
 		if(n->parent == NULL)
 		{
-		    assert(n->isrootnode());
+		    assert(n->isRoot());
 		    //makeroot(middlekey, n, ln);
 		}
 		else
@@ -480,14 +524,14 @@ public:
 	    }
 
 	}
-        return true;
+        return std::pair<iterator, bool> (iter, true);
     }
     void makeroot(keytype k, data_type data)
     {
 	root = new leafNode;
 	root->initialize();
-
-	root.insertpair(k, data);
+	root->parent = NULL;
+	root->insertpair(k, data);
     }
     private:
     /**
@@ -496,12 +540,13 @@ public:
      * */
     void insert_in_parent(node* N, keytype k, node* Nprime)
     {
-	innerNode* tnode = NULL;
-	innerNode* p = N->parent;
+	innerNode* tnode = new innerNode();
+	innerNode* p = static_cast<innerNode*>(N->parent);
 	//initialize node
+	innerNode* Np = static_cast<innerNode*>(Nprime);
 	tnode->initialize();
 	if(!p->isfull())
-	    p->insertpair(k, Nprime);
+	    p->insertpair(k, Np);
 	//if the node is full split it.
 	else 
 	{
@@ -511,10 +556,10 @@ public:
 		if(i < (p->keyCount()/2+1))
 		{
 		    tnode->keySlots[i] = p->keySlots[i];
-		    tnode->firstChild.group[i] = p->firstChild.group[i];
+		    tnode->firstChild[i] = p->firstChild[i];
 		    tnode->node::slotsinuse++;
 		    p->keySlots[i] = NULL;
-		    p->firstChild.group[i] = NULL;
+		    p->firstChild[i] = NULL;
 		    p->slotsinuse--;
 		}
 	    }
@@ -680,6 +725,9 @@ public:
                 return currnode->dataSlots[currslot];
             }
 
+	    inline leafNode* getleafNode(){
+		return currnode;
+	    }
             /// Prefix++ advance the iterator to the next slot
 
             inline self & operator++() {
@@ -816,7 +864,7 @@ public:
         }
 
         /// Constructs a read-only reverse iterator that points to the first slot
-        /// in the first leaf of the B+ tree. Uses STL magic.
+        // in the first leaf of the B+ tree. Uses STL magic.
 
         inline const_reverse_iterator rend() const {
             return const_reverse_iterator(begin());
