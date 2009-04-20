@@ -9,6 +9,6 @@ test: btree.h test.cc cscope
 contest: lib
 	 gcc unittests.c ./lib.so -pthread -o contest
 cscope: 
-	cscope -b -k
+	cscope -k -b
 clean:
 	rm *.o *.out test
