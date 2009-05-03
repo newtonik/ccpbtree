@@ -8,11 +8,11 @@ using namespace std;
 int main() {
 
     int all = 0;
-    typedef btree<int, int, 10, 10,std::less<int> > bt_tree;
+    typedef btree<int, int, 4,4,std::less<int> > bt_tree;
     bt_tree* mytree = new bt_tree();
     int i = 0;
     
-    while (i < 2000)
+    while (i < 20 )
     {
         mytree->insert(i, rand());
         cout << "Main: insert complete with size as "<< mytree->size() << endl;
@@ -67,8 +67,18 @@ int main() {
 //           mytree->insert(14, 233314);
 //           cout << "size is " << mytree->size() << endl;
         i++;
-        
+         mytree->printleaves();
     }
+    mytree->printleaves();
+    cout << "entering delete loop" << endl;
+    for(int j = 0;j < 10; j++)
+    {
+        if(mytree->erase(j) < 0)
+            cout << "deletion failed" << endl;
+        mytree->printleaves();
+        cout << "size after deleting is " << mytree->size() << endl;
+    }
+    // mytree->printleaves();
     delete mytree;
     return 0;
 }
