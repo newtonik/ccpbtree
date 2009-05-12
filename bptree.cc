@@ -21,6 +21,64 @@ pthread_mutex_t ILINK_LOCK = PTHREAD_MUTEX_INITIALIZER;
 //list of index for  each data type
 DBLink  *dbLookup;
 
+/**
+ *get key, from the bdbimpl *
+ * */
+int p_setKeyDataFromKey(Key *k, void *key)
+{
+
+    switch (k->type) {
+        case SHORT:
+        {
+            //the key is a 32-bit integer
+            //hack: put the converted int after the plain int
+            uint8_t *data = ((uint8_t *) k->keyval.charkey) + 4;
+            uint32_t i = k->keyval.shortkey;
+            data[3] = (i & 0xFF);
+            data[2] = (i & 0xFF00) >> 8;
+            data[1] = (i & 0xFF0000) >> 16;
+            data[0] = (i & 0xFF000000) >> 24;
+            data[0] ^= 0x80;
+	    key = new short;
+            key = data;
+	    return 1;
+            break;  
+        }
+        case INT:
+        {
+            //the key is a 64-bit integer
+            //hack: put the converted int after the plain int
+            uint8_t *data = ((uint8_t *) k->keyval.charkey) + 8;
+            uint64_t i = k->keyval.intkey;
+            data[7] = (i & 0xFFLL);
+            data[6] = (i & 0xFF00LL) >> 8;
+            data[5] = (i & 0xFF0000LL) >> 16;
+            data[4] = (i & 0xFF000000LL) >> 24;
+            data[3] = (i & 0xFF00000000LL) >> 32;
+            data[2] = (i & 0xFF0000000000LL) >> 40;
+            data[1] = (i & 0xFF000000000000LL) >> 48;
+            data[0] = (i & 0xFF00000000000000LL) >> 56;
+            data[0] ^= 0x80;
+            key = new int;
+	    key = data;
+	    return 2;
+            break;
+        }
+        case VARCHAR:
+            //the key is a <128-byte string
+	    key = new char[strlen(k->keyval.charkey)+1];
+	    strcpy((char*)key, k->keyval.charkey);
+            //key->data = k->keyval.charkey;
+            //key->size = strlen(k->keyval.charkey);
+            //key->ulen = key->size;
+	    return 3;
+            break;
+        default:
+            return -1;
+    }
+    return 0;
+}
+
 
 ErrCode create( KeyType type, char* name)
 {
@@ -31,7 +89,7 @@ ErrCode create( KeyType type, char* name)
 	cout << "Cannot" << endl;
     }
 
-    DBLink	*link  = dbLookup;
+    DBLink *link  = dbLookup;
 
     while (link != NULL) {
 	if(strcmp(name, link->name) == 0) {
@@ -66,8 +124,24 @@ ErrCode create( KeyType type, char* name)
             return ret;
         }
     }*/
-    stxbtree_type* dbp = new stxbtree_type;
-    if(dbp == NULL )
+    //stxbtree_type* dbp = new stxbtree_type;
+    void* nbt = NULL;
+    switch(type)
+    {
+	case SHORT:
+	 nbt  =(nbtree_st*) new nbtree_st;
+	break;
+	case INT:
+	nbt  = (nbtree_int*) new nbtree_int;
+	break;
+	case VARCHAR:
+	 nbt  = (nbtree_ch*) new nbtree_ch;
+	break;
+	default:
+	return FAILURE;
+    }
+    //nbtree* nbt = new nbtree;
+    if(nbt == NULL)
     {
 	return FAILURE;
 
@@ -84,7 +158,7 @@ ErrCode create( KeyType type, char* name)
     
     //populate it
     newLink->name = name;
-    newLink->dbp = dbp;
+    newLink->nbt = nbt;
     newLink->type =  type;
     newLink->numOpenThreads = 0;
     newLink->link = NULL;
@@ -111,7 +185,8 @@ ErrCode create( KeyType type, char* name)
 ErrCode openIndex(const char *name, IdxState **idxState)
 {
     int ret;
-    stxbtree_type *dbp;
+    //stxbtree_type *dbp;
+    void* nbt;
     //lock the dblink system
     if ((ret = pthread_mutex_lock(&ILINK_LOCK)) != 0) {
         printf("can't acquire mutex lock: %d\n", ret);
@@ -138,7 +213,7 @@ ErrCode openIndex(const char *name, IdxState **idxState)
     
     //if numOpenThreads == 1, we need to open the index
     if (link->numOpenThreads == 1) {
-        dbp = link->dbp;
+        nbt = link->nbt;
         
         //set the db to handle duplicates (flag must be set before db is opened)
         //ret = dbp->set_flags(dbp, DB_DUPSORT); 
@@ -149,7 +224,7 @@ ErrCode openIndex(const char *name, IdxState **idxState)
 	STXDBState *state =(STXDBState*)  new STXDBState;
 	memset(state, 0, sizeof(STXDBState));
 	*idxState = (IdxState *) state;
-	state->dbp = link->dbp;
+	state->nbt = link->nbt;
 	state->type = link->type;
 	state->db_name = name;
     
@@ -197,7 +272,7 @@ ErrCode closeIndex(IdxState *ident)
     //decrement the number of threads for whom this index is open
     link->numOpenThreads--;
     //remove this DBP from this thread's state
-    state->dbp = NULL;
+    state->nbt = NULL;
     
     // if there are still threads using this index, don't close it
     if (link->numOpenThreads > 0) {
@@ -273,8 +348,48 @@ ErrCode commitTransaction(TxnState *txn)
 ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
 {   
     STXDBState *state = (STXDBState*) idxState;
-    stxbtree_type* dbp = state->dbp;
-
+     std::pair<string, bool> ret;
+    //stxbtree_type* dbp = state->dbp;
+    //nbtree_int* nbt = (nbtree_int*)state->nbt;
+    switch(state->type)
+    {
+	case SHORT: 
+	    { 
+	    nbtree_st* shtree = (nbtree_st*)state->nbt;
+	    short k;
+	    p_setKeyDataFromKey(&(record->key), &k);
+            ret = shtree->get(k);
+	    cout << "string returned " << ret.first << endl;
+	    strcpy(record->payload, (ret.first).c_str());
+	    break;
+	    return SUCCESS;	    
+	    }
+	case INT: 
+	    {
+	    nbtree_int* intree = (nbtree_int*)state->nbt;
+	    int k;
+	    p_setKeyDataFromKey(&(record->key), &k);
+	    ret = intree->get(k);
+	    cout << "string returned " << ret.first << endl;
+	      strcpy(record->payload, ret.first.c_str());
+	      return SUCCESS;
+	      break;
+	    }
+	case VARCHAR: 
+	    {
+	    nbtree_ch* chtree = (nbtree_ch*)state->nbt;
+	    char* k;
+	    p_setKeyDataFromKey(&(record->key), k);
+	    string sk(k);
+	    ret = chtree->get(sk);
+	    cout << "string returend " << ret.first << endl;
+	    return SUCCESS;
+	    break;
+		      }
+	default:
+	    return FAILURE;
+    
+    }
     
     TXNState* txne = (TXNState*) txn;
     if(txne->tid != state->tid) {
@@ -285,25 +400,7 @@ ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
 
     memcpy(&(state->lastKey) , &(record->key), sizeof(Key));
     state->keyNotFound  = 0;
-	
-    //string data =(char*)record->payload;
-    
-    btinter bit;
-    //DBLink *link =  dbLookup;
-    //TXNState* txnstate = (TXNState*)txn;
-    
-    bit = dbp->find(record->key);
 
-    //if no record found
-    if(bit == dbp->end()){	
-	    state->keyNotFound = 1;
-	    return KEY_NOTFOUND;
-    }else
-    {
-	//copy data to payload
-	strcpy(record->payload, bit->second.c_str());
-	return SUCCESS;
-     }
 }
 
 
@@ -336,7 +433,8 @@ ErrCode get(IdxState *idxState, TxnState *txn, Record *record)
 ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record)
 {
     STXDBState* state  = (STXDBState*) idxState;
-    stxbtree_type* dbp = state->dbp;
+    //stxbtree_type* dbp = state->dbp;
+    void* nbt =(nbtree_int*) state->nbt;
 
     btinter bit;
     //if key wasn't found
@@ -345,43 +443,30 @@ ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record)
 	state->tid = txne->tid;
     memset(&(state->lastKey), 0, sizeof(Key));
     state->keyNotFound = 1;
-     bit = dbp->begin();
-     if(bit != dbp->end())
-     {
-	
-
-	    memcpy(&(record->key), &(bit->first), sizeof(Key));
-	    memcpy(&(state->lastKey), &(bit->first), sizeof(Key));
-	    strcpy(record->payload, bit->second.c_str());
-	    state->keyNotFound  = 0;	 
-	    return SUCCESS;
-	}
-
-     }
     
     if(state->keyNotFound == 1)
     {
-	if(dbp->size() == 0)
+	if(nbt->size() == 0)
 	{
 	    //state->keyNotFound = 0;
 	    return DB_END;
 	}
 	//bit = dbp->begin();
 	//copy data to payload
-	bit = dbp->find(state->lastKey);
+	 nbt->exits(state->lastKey)
 	//move next
-	bit++;
-	strcpy(record->payload, bit->second.c_str());
+	///bit++;
+	//strcpy(record->payload, bit->second.c_str());
 	//memcpy(&(state->lastKey) , &(record->key), sizeof(Key));
 	state->keyNotFound  = 0;
 	return SUCCESS;
     }
     else
     {
-	bit = dbp->find(state->lastKey);
+	nbt->exists(state->lastKey);
 	//move next
 	bit++;
-	if(bit == dbp->end())
+	if(bit == nbt->end())
 	{   
 	    return DB_END;
 	}
@@ -421,20 +506,70 @@ ErrCode getNext(IdxState *idxState, TxnState *txn, Record *record)
 ErrCode insertRecord(IdxState *idxState, TxnState *txn, Key *k, const char* payload)
 {
 
+	void* vbt;
+	void* mykey = NULL;
 	STXDBState* state = (STXDBState*) idxState;
-	stxbtree_type* dbp = state->dbp;
-	std::string value(payload);
-	std::pair<btinter, btinter> range; 
-	range = dbp->equal_range(*k);
-
-	for(btinter i=range.first; i != range.second; ++i)
-	{
-		if(value == i->second)
-		    return ENTRY_EXISTS;
-	}
-	btinter inres = dbp->insert2(*k, value);
 	
-	//memcpy(&(state->lastKey) , k, sizeof(Key));
+	p_setKeyDataFromKey(k, mykey);
+	
+	if(mykey == NULL)
+	{
+	    return FAILURE;
+	}
+
+	//stxbtree_type* dbp = state->dbp;
+	//nbtree* nbt = state->nbt;
+	
+	std::string value(payload);
+	//std::pair<btinter, btinter> range; 
+	//range = dbp->equal_range(*k);
+	switch(k->type)
+	{
+	    case SHORT:
+		{
+		if(state->type != SHORT)
+		    return FAILURE;
+		nbtree_st* nbt = (nbtree_st*) state->nbt;
+
+	if(nbt->insert(*((short*)mykey), value) < 0)
+	{
+	    return ENTRY_EXISTS;
+	}
+		}
+	else 
+	    return SUCCESS;
+		break;
+	    case INT:
+		{
+		if(state->type != INT)
+		    return FAILURE
+		
+		if(nbt->insert(*((int*)mykey), value) < 0)
+		{
+		    return ENTRY_EXISTS;
+		}
+		else 
+		    return SUCCESS;
+		break;
+		}
+	    case VARCHAR:
+		{
+		string stkey((char*)mykey);
+		if(nbt->insert(stkey, value) < 0)
+		{
+
+		    return ENTRY_EXISTS;
+		}
+		else
+		    return SUCCESS;
+		break;
+
+		}
+	    default:
+		return FAILURE;
+	}
+    	
+	memcpy(&(state->lastKey) , k, sizeof(Key));
 
 	return SUCCESS;
 }
@@ -463,18 +598,16 @@ ErrCode deleteRecord(IdxState *idxState, TxnState *txn, Record *record)
 
 	
 	STXDBState* state = (STXDBState*) idxState;
-	stxbtree_type* dbp = state->dbp;
+	void* nbt = state->nbt;
     
 	//determnine if there is a payload
-	if(strlen(record->payload) == 0)
+	if(strlen(record->payload) != 0)
 	{
-	    dbp->erase(record->key);
+	    if(nbt->erase_pair(record->key, record->payload) < 0)
+		return KEY_NOTFOUND;
 	}
-	else 
-	    dbp->erase_one(record->key);
 
     return SUCCESS;
-
 
 }
 

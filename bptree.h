@@ -3,11 +3,11 @@
 #include <stx/btree_multimap.h>
 //sigmod server file
 #include "server.h"
-
+#include "src/btree.h"
 #define ENV_DIRECTORY "ENV"
 #define DEFAULT_HOMEDIR "./"
 
-
+using namespace std;
 
 template <int Slots>
 struct btree_traits_debug
@@ -36,12 +36,17 @@ struct keyless
 
 
 
+typedef nwt::btree<int, string, 4,4,std::less<int> > nbtree;
 typedef stx::btree_multimap<Key, std::string, keyless, btree_traits_debug<16> > stxbtree_type;
+typedef nwt::btree<short, string, 4,4,std::less<short> > nbtree_st;
+typedef nwt::btree<string, string, 4,4,std::less<string> > nbtree_ch;
+typedef nwt::btree<int, string, 4,4,std::less<int> > nbtree_int;
 typedef stxbtree_type::iterator btinter;
 
 struct STXDBState
 {
     stxbtree_type *dbp; //this will be the struct type stx btree
+    void *nbt;
     KeyType type;
     const char* db_name;
     uint32_t tid;
@@ -57,7 +62,8 @@ struct CursorLink
 };
 typedef struct
 {
-	stxbtree_type  *dbp;
+	//stxbtree_type  *dbp;
+	void* nbt;
         CursorLink  *cursorLink;
 	int status;
 	uint32_t tid;
@@ -68,6 +74,7 @@ typedef struct
 struct DBLink
 {
     char    *name;
+    void* nbt;
     stxbtree_type   *dbp;
     KeyType type;
     struct DBLink *link;

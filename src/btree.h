@@ -9,7 +9,7 @@
 
 #ifdef BTREE_DEBUG
 
-#define TREE_PRINT(x)	do { if (debug) (std::cout <<x << endl; ); } while(0)
+#define TREE_PRINT(x)	do { if (debug) (std:://cout <<x << endl; ); } while(0)
 
 #define BTREE_ASSERT(x)  do { assert(x); } while(0)
 
@@ -67,6 +67,7 @@ namespace nwt {
             unsigned short slotsinuse;
             //if its a leafnode
             bool isleafnode;
+	    //if its a root
             bool isrootnode;
             node* parent;
 
@@ -93,8 +94,8 @@ namespace nwt {
                 isrootnode = root;
             }
         };
-        //inherit node for inner node
 
+        //inherit node for inner node
         struct innerNode : public node {
             //slots for keys....inner nodes only have slots of keys and pointers
             keytype keySlots[bt_innernodemax];
@@ -102,7 +103,7 @@ namespace nwt {
             node * firstChild[bt_innernodemax + 1];
             //number of child nodes present, max can be node:slots + 1
             int numChildren;
-
+            //innernode slots
             inline void initialize() {
                 node::initialize();
                 node::slots = bt_innernodemax;
@@ -111,7 +112,7 @@ namespace nwt {
                     firstChild[i] = NULL;
                 numChildren = 0;
             }
-
+	    //quick quess that two nodes are identical...not always correct
             inline bool equal(const innerNode & n) {
                 if (node::keyCount() != n->keyCount())
                     return false;
@@ -121,18 +122,21 @@ namespace nwt {
                 return true;
             }
             //check for underflow
-
             inline bool isunderflow() const {
                 return (numChildren < (bt_innernodemin+1));
             }
             //check if nodes slots are full.
 
             inline bool isfull() {
-                cout << "slots size is " << node::slotsinuse << endl;
+                //cout << "slots size is " << node::slotsinuse << endl;
                 return (node::slotsinuse == bt_innernodemax);
             };
         };
 
+	/**
+	 *Struct mean't to represent inner nodes
+	 *
+	 * */
         struct innerngroup {
             innerNode * group[bt_innernodemax];
 
@@ -175,21 +179,25 @@ namespace nwt {
                 dataSlots = new data_type[bt_leafnodemax];
                 //keySlots = new keytype[node::slot];
             }
-
-            inline bool equal(const leafNode & n) {
-                if (node::keyCount() != n->keyCount())
+	    /**
+	     *Check that the nodes are identifical
+	     *
+	     **/
+            inline bool equal(const leafNode &l) {
+                if (node::keyCount() != l->keyCount())
                     return false;
-                for (int i = 0; i < node::slotsinuse; i++)
-                    if (dataSlots[i] != n.dataSlots[i])
+		
+		for (int i = 0; i < node::slotsinuse; i++)
+                    if ((dataSlots[i] != l->dataSlots[i]) || (keySlots[i] != l->keySlots[i]))
                         return false;
                 return true;
             }
             //check if node is full
 
             inline bool isfull() const {
-                cout << "in isfull " << endl;
-                cout << "bt leaf value is " << bt_leafnodemax << endl;
-                cout << "the value of slotsinuse is " << node::slotsinuse << endl;
+                //cout << "in isfull " << endl;
+                //cout << "bt leaf value is " << bt_leafnodemax << endl;
+                //cout << "the value of slotsinuse is " << node::slotsinuse << endl;
                 return (node::slotsinuse == bt_leafnodemax);
                 //return false;
             }
@@ -244,33 +252,36 @@ namespace nwt {
         //erase
         void erase();
 
+	/**
+	 *Find the location of node c, in innerNode n
+	 **/
         int findInnerNodeLoc(innerNode* n, node* c) {
-            cout << "findInnerNodeLoc" << endl;
+            //cout << "findInnerNodeLoc" << endl;
             if ((c == NULL) || (n == NULL)) {
-                cout << "findInnerNodeLoc, child is null" << endl;
+                //cout << "findInnerNodeLoc, child is null" << endl;
                 return -1;
             }
-            cout << "parent has " << n->numChildren << " children" << endl;
-             cout << "parent has " << n->keyCount() << " keys" << endl;
+            //cout << "parent has " << n->numChildren << " children" << endl;
+             //cout << "parent has " << n->keyCount() << " keys" << endl;
 
             if (c->isleaf()) {
                 leafNode* child = static_cast<leafNode*> (c);
-                cout << "findinnernodeloc:: inner node is leaf" << endl;
+                //cout << "findinnernodeloc:: inner node is leaf" << endl;
                 //get the first key of the child
                 keytype k = child->keySlots[0];
                 int i;
-                cout << "findinnernodeloc:: search key is " << k << endl;
+                //cout << "findinnernodeloc:: search key is " << k << endl;
                 for (i = 0; i < n->keyCount(); i++) {
-                     cout << "findinnernodeloc:: checking loc " << i << endl;
+                     //cout << "findinnernodeloc:: checking loc " << i << endl;
                     if (keygreater(n->keySlots[i], k) > 0) {
                         return i;
                     }
                 }
                 //check node at the end
                 if(i < n->numChildren) {
-                    cout << "checking last child " << endl;
+                    //cout << "checking last child " << endl;
                 leafNode* last = static_cast<leafNode*>(n->firstChild[i]);
-                cout << "last child's first key key is " << last->keySlots[0] << endl;
+                //cout << "last child's first key key is " << last->keySlots[0] << endl;
                 if(keyequal(last->keySlots[0], k))
                     return i;
                 }
@@ -290,7 +301,7 @@ namespace nwt {
                 }
                 if(i < n->numChildren)
                 {
-                    cout << "checking last child " << endl;
+                    //cout << "checking last child " << endl;
                 //the node is at the end
                   innerNode* last = static_cast<innerNode*>(n->firstChild[n->numChildren-1]);
 
@@ -307,23 +318,26 @@ namespace nwt {
         {
 
             leafNode* l;
-            cout << "printing leaves" << endl;
+            //cout << "printing leaves" << endl;
             l = find(0);
 
             while(l != NULL) {
                 for(int i = 0; i < l->keyCount(); i++)
                 {
-                     cout << l->keySlots[i] << endl;
+                    cout << l->keySlots[i] << endl;
                 }
                 l = l->nextLeaf;
-                cout << "next leaf" << endl;
+                //cout << "next leaf" << endl;
             }
         }
-
+	/**
+	 *Find the location of key in innderNode
+	 *
+	 * */
         int findInnerNodeKey(innerNode* n, keytype k) {
             if (n == NULL)
                 return -1;
-            cout << "findInnerNodeKey:: locking for key " << k << endl;
+            //cout << "findInnerNodeKey:: locking for key " << k << endl;
             for (int i = 0; i < n->slotsinuse; i++)
                 if (keyequal(n->keySlots[i], k) > 0) {
                     return i;
@@ -337,13 +351,15 @@ namespace nwt {
             if (n->firstChild == NULL)
                 return NULL;
             else {
-                cout << "returning child " << i << endl;
+                //cout << "returning child " << i << endl;
                 return n->firstChild[i];
-
             }
 
         }
-
+	/**
+	 *insert a key in a inner Node
+	 *
+	 * */
         inline int insertInnerNodeKeyAt(innerNode* n, keytype k, int index) {
             //int old = node:slotsinuse;
             int max = n->keyCount();
@@ -353,7 +369,7 @@ namespace nwt {
             }//if there are no keys or position is at end, a simple entry.
             if ((n->keyCount() == 0) || ((n->keyCount() <= index) && (index < n->slots))) {
                 n->keySlots[index] = k;
-                cout << "added key " << k << " at location " << index << endl;
+                //cout << "added key " << k << " at location " << index << endl;
                 n->slotsinuse++;
                 return 1;
             } else if ((index) <= n->keyCount()) {
@@ -366,7 +382,7 @@ namespace nwt {
                 //insert the new key
                 n->keySlots[index] = k;
                 n->slotsinuse++;
-                cout << "added key " << k << endl;
+                //cout << "added key " << k << endl;
 
                 return 1;
             }
@@ -382,20 +398,20 @@ namespace nwt {
                 printf("Array of of bounds, %d in array of size %d\n", index, dest->slots);
                 return -1;
             }
-            cout << "insert child in index " << index << endl;
+            //cout << "insert child in index " << index << endl;
             if(index < dest->numChildren)
             {
-                cout << "insertInnerNodeChildAt:: shifting nodes" << endl;
+                //cout << "insertInnerNodeChildAt:: shifting nodes" << endl;
                 for(int i=dest->numChildren-1; i >= index; i--)
                 {
                     dest->firstChild[i+1] = dest->firstChild[i];
                     //leafNode* d = static_cast<leafNode*> (dest->firstChild[index+1]);
-                       //cout << "first key in next is " << d->keySlots[i+1] << endl;
+                       ////cout << "first key in next is " << d->keySlots[i+1] << endl;
                 }
             }
             dest->firstChild[index] = static_cast<node*> (n);
             n->parent = dest;
-            cout << "a child has been added" << endl;
+            //cout << "a child has been added" << endl;
 
 
             //increment the number of Children
@@ -406,27 +422,27 @@ namespace nwt {
                 //set the next and previous nodes
                  leafNode* l = static_cast<leafNode*> (n);
                 if (index - 1 >= 0) {
-                    cout << "setting prev leaf" << endl;
+                    //cout << "setting prev leaf" << endl;
 
                     leafNode* d = static_cast<leafNode*> (dest->firstChild[index - 1]);
                      l->prevLeaf = d;
                     d->nextLeaf = l;
-                     cout << "last key in prev is " << d->keySlots[d->keyCount()-1] << endl;
-                     cout << "first key in cur is " << l->keySlots[0] << endl;
+                     //cout << "last key in prev is " << d->keySlots[d->keyCount()-1] << endl;
+                     //cout << "first key in cur is " << l->keySlots[0] << endl;
                 }
           
                 if (index + 1 < dest->numChildren) {
-                    cout << "setting next leaf" << endl;
+                    //cout << "setting next leaf" << endl;
                     
                     leafNode* d = static_cast<leafNode*> (dest->firstChild[index + 1]);
                     l->nextLeaf = d;
                     d->prevLeaf = l;
-                     cout << "last key in cur is " << l->keySlots[l->keyCount()-1] << endl;
-                     cout << "first key in next is " << d->keySlots[0] << endl;
+                     //cout << "last key in cur is " << l->keySlots[l->keyCount()-1] << endl;
+                     //cout << "first key in next is " << d->keySlots[0] << endl;
                 }
              
             }
-            cout << dest->numChildren << endl;
+            //cout << dest->numChildren << endl;
             return 0;
             //return -1;
         }
@@ -452,15 +468,15 @@ namespace nwt {
             if(loc == -1)
                 loc = n->slotsinuse;
             if (loc < 0) {
-                cout << "cannot find location " << endl;
+                //cout << "cannot find location " << endl;
                 return loc;
             }
 
             if (loc >= 0) {
-                cout << "insertinnernodepair:: loc is " << loc << endl;
+                //cout << "insertinnernodepair:: loc is " << loc << endl;
                 insertInnerNodeKeyAt(n, k, loc);
                 insertInnerNodeChildAt(n, child, loc);
-                cout << "there are now " << n->numChildren << " children" << endl;
+                //cout << "there are now " << n->numChildren << " children" << endl;
                 return loc;
             } else {
                 printf("cannot insert pair\n");
@@ -476,47 +492,59 @@ namespace nwt {
             for (int i = 0; i < n->keyCount(); i++) {
                 delete n->firstChild[i];
             }
-
-
-
         }
-
+	/***
+	 *Find a key great in a leafNode
+	 *
+	 * **/
         inline int findKeyLoc(leafNode* l, keytype k) {
             int i = 0;
 
             if (l->slotsinuse == 0)
                 return 0;
-            cout << "In leafnode find key Loc" << endl;
+            //cout << "In leafnode find key Loc" << endl;
             for (i = 0; i < l->slotsinuse; i++) {
-                cout << "slot key is " << l->keySlots[i] << " and key is " << k << endl;
-                if (keygreater(l->keySlots[i], k) > 0)
+                //cout << "slot key is " << l->keySlots[i] << " and key is " << k << endl;
+                if (keygreaterequal(l->keySlots[i], k) > 0)
+                {
                     return i;
+                }
             }
-            cout << "findkeyloc:: k is greater than everything" << endl;
+            //cout << "findkeyloc:: k is greater than everything" << endl;
             return l->slotsinuse;
 
         }
 
+	/***
+	 *Find the location of a key equal to k
+	 *
+	 * */
         inline int findKeyEqual(leafNode* l, keytype k) {
             int i = 0;
-
+	    if(l == NULL)
+		return -1;
             if (l->slotsinuse == 0)
                 return 0;
-            cout << "In leafnode find key Loc" << endl;
+            //cout << "In leafnode find key Loc" << endl;
             for (i = 0; i < l->slotsinuse; i++) {
-                cout << "slot key is " << l->keySlots[i] << " and key is " << k << endl;
+                //cout << "slot key is " << l->keySlots[i] << " and key is " << k << endl;
                 if (keyequal(l->keySlots[i], k) > 0)
                     return i;
             }
-            cout << "findkeyloc:: k is greater than everything" << endl;
+            //cout << "findkeyloc:: k is greater than everything" << endl;
             return l->slotsinuse;
-
         }
+	/**
+	 *Insert data in the index of the leafNode
+	 *
+	 * */
+        inline int insertleafDataAt(leafNode* l, data_type data, int index) {
+	    if(l == NULL)
+		return -1;
 
-        inline bool insertleafDataAt(leafNode* l, data_type data, int index) {
             assert(l->isleaf());
             if (index >= bt_leafnodemax || index < 0) {
-                return false;
+                return -1;
             } else {
 
                 l->dataSlots[index] = data;
@@ -524,28 +552,32 @@ namespace nwt {
 
             //dosomething
 
-            return false;
+            return index;
         }
-
+	/**
+	 *Insert key in the index of the leafNode 
+	 * */
         inline int insertleafKeyAt(leafNode* l, keytype k, int index) {
             //int old = node:slotsinuse;
+	    if(l == NULL)
+		return -1;
             int max = l->keyCount();
             assert(l->isleaf());
-            cout << "in insertleafkey " << k << " at index " << index << endl;
+            //cout << "in insertleafkey " << k << " at index " << index << endl;
             if ((index >= l->slots) || (index < 0)) {
                 return -1;
             }//if there are no keys or position is at end, a simple entry.
             if ((l->keyCount() == 0) || ((l->keyCount() <= index) && (index < l->slots))) {
                 l->keySlots[index] = k;
                 l->slotsinuse++;
-                cout << "keys in node" << endl;
+                //cout << "keys in node" << endl;
                 for (int i = 0; i < l->keyCount(); i++)
-                    cout << "key is " << l->keySlots[i] << endl;
+                    //cout << "key is " << l->keySlots[i] << endl;
                 return 1;
             } else if ((index) <= l->keyCount()) {
                 //loop through array to move keys to create space
                 //for new key in position index
-                cout << "moving keys to create space" << endl;
+                //cout << "moving keys to create space" << endl;
                 for (int i = max; i > index; i--) {
                     l->keySlots[i] = l->keySlots[i - 1];
                 }
@@ -553,9 +585,9 @@ namespace nwt {
                 //insert the new key
                 l->keySlots[index] = k;
                 l->slotsinuse++;
-                cout << "keys in node" << endl;
+                //cout << "keys in node" << endl;
                 for (int i = 0; i < l->keyCount(); i++)
-                    cout << "key is " << l->keySlots[i] << endl;
+                    //cout << "key is " << l->keySlots[i] << endl;
                 return 1;
 
             }
@@ -563,33 +595,59 @@ namespace nwt {
         }
 
         inline int insertleafpair(leafNode* l, keytype k, data_type data) {
-            cout << "insertleafpair:: in leafnode insertpair" << endl;
+            //cout << "insertleafpair:: in leafnode insertpair" << endl;
             if (l->isfull())
                 return -1;
             assert(l->isleaf());
 
             if ((bt_leafnodemax == l->slotsinuse))
                 return -1;
-            cout << "insertleafpair:: about to find key location" << endl;
+            //cout << "insertleafpair:: about to find key location" << endl;
             int loc = findKeyLoc(l, k);
-            cout << "loc is " << loc << endl;
+            //cout << "loc is " << loc << endl;
             if (loc < 0)
                 return loc;
-            cout << "inserting " << "key " << k << " in location " << loc << endl;
+
+            //check for duplicates
+            leafNode* cur = l;
+            int j = loc;
+            while(cur != NULL)
+            {
+                if((keyequal(cur->keySlots[j], k) > 0)) {
+                    while((j < cur->keyCount()) && (keyequal(cur->keySlots[j], k) > 0))
+                    {
+                            if(data == cur->dataSlots[j])
+                            {
+                                //there is a duplicate pair return a special error.
+                                cout << "duplicate pair found" << endl;
+                                return -2;
+                            }
+                            j++;
+                    }
+
+                    j = 0;
+                    cur = cur->nextLeaf;
+                }
+                else
+                {
+                    cur = NULL;
+                    break;
+                }
+            }
             insertleafKeyAt(l, k, loc);
             insertleafDataAt(l, data, loc);
             //l->slotsinuse++;
-            cout << "insertleafpair:: key count is " << l->slotsinuse << " after insert" << endl;
+            //cout << "insertleafpair:: key count is " << l->slotsinuse << " after insert" << endl;
             return 1;
         }
 
         inline int deleteleafpair(leafNode* l, keytype k, data_type data) {
-            cout << "deletepair:: entering" << endl;
+            //cout << "deletepair:: entering" << endl;
             if (l->keyCount() < 1)
                 return -1;
             int loc = find_lowerkey(l, k);
 
-            cout << "key found in leaf at slot " << loc << std::endl;
+            //cout << "key found in leaf at slot " << loc << std::endl;
             if (keyequal(k, l->keySlots[loc])) {
                 for (int i = loc; i < l->keyCount() - 1; i++) {
                     l->keySlots[i] = l->keySlots[i + 1];
@@ -598,27 +656,24 @@ namespace nwt {
                 }
                 l->slotsinuse--;
                 downkeycount();
-                cout << k << " has been deleted" << endl;
-                cout << "key count is now " << l->keyCount() << endl;
+                //cout << k << " has been deleted" << endl;
+                //cout << "key count is now " << l->keyCount() << endl;
             } else {
-                cout << "key and data pair could not be found" << endl;
-                cout << "key pair to delete is " << k << " and " << data << endl;
-                cout << "key pair found is " << l->keySlots[loc] << " and " << l->dataSlots[loc] << endl;
-                return -1;
+              return -1;
             }
             return loc;
         }
 
         inline int deleteinnerpair(innerNode* p, keytype k, node* n) {
 
-            cout << "deleteinnerpair:: " << endl;
+            //cout << "deleteinnerpair:: " << endl;
             // innerNode* inner = static_cast<innerNode*>(n);
             if (p->keyCount() < 1)
                 return -1;
             int j = 0;
             for (int i = 0; i < p->keyCount(); i++) {
                 if (keyequal(k, p->keySlots[i]) > 0) {
-                    cout << "deleteinnerpair:: found keyes that are equal" << endl;
+                    //cout << "deleteinnerpair:: found keyes that are equal" << endl;
                     for (j = i; i < p->keyCount() - 1; j++) {
                         p->firstChild[j] = p->firstChild[j + 1];
                         p->keySlots[j] = p->keySlots[j + 1];
@@ -645,51 +700,43 @@ namespace nwt {
             keytype ki;
             int slot = -1;
             std::pair<iterator, bool> ret;
-            cout << "FIND: in btree find" << endl;
+            //cout << "FIND: in btree find" << endl;
             if (empty())
                 return NULL;
             //return std::pair<iterator, bool> (end(), false);
-            cout << "FIND: not empty" << endl;
+            //cout << "FIND: not empty" << endl;
 
             if (rootNode->isRoot()) {
-                cout << "this is root" << endl;
+                //cout << "this is root" << endl;
 
             }
             if (rootNode == NULL) {
-                cout << "root is null" << endl;
+                //cout << "root is null" << endl;
             }
             while (!(rootNode->isleaf())) {
                 innerNode* curNode = static_cast<innerNode*> (rootNode);
-                cout << "FIND:: checking inner nodes, this node has  " << curNode->numChildren << " children." << endl;
-                cout << "FIND:: Key is " << k << " key count is " << curNode->keyCount() << endl;
+                //cout << "FIND:: checking inner nodes, this node has  " << curNode->numChildren << " children." << endl;
+                //cout << "FIND:: Key is " << k << " key count is " << curNode->keyCount() << endl;
                 for (i = 0; i < curNode->keyCount(); i++) {
-                    cout << "checking slot, key is " << curNode->keySlots[i] << endl;
+                    //cout << "checking slot, key is " << curNode->keySlots[i] << endl;
                     // TREE_PRINT("looking for key " << k << "and at index" << i);
                     if (keygreater(curNode->keySlots[i], k) > 0) {
                         //found a key that is greater than the look being searched'
-                        cout << curNode->keySlots[i] << " is greater than " << k << endl;
+                        //cout << curNode->keySlots[i] << " is greater than " << k << endl;
                         ki = (curNode->keySlots[i]);
                         slot = i;
                         break;
                     }
-                    cout << "i is " << i << endl;
+                    //cout << "i is " << i << endl;
                 }
-                cout << "i is " << i << endl;
-                //                if(slot < 0)
-                //                {
-                //                    cout << "slot is less than zero" << endl;
-                //                    slot = (curNode->numChildren-1);
-                //                }
-                //                cout << "slot is " << slot << endl;
-                //
-                //this key is greater than all keys in node
+         
                 if (slot >= 0) {
-                    cout << "FIND:: slot is " << slot << endl;
+                    //cout << "FIND:: slot is " << slot << endl;
                     if (curNode->numChildren > curNode->keyCount()) {
                         tempNode = getChild(curNode, slot);
                         if (tempNode == NULL) {
                             tempNode = getChild(curNode, curNode->numChildren - 1);
-                            cout << "tempNode is NULL" << endl;
+                            //cout << "tempNode is NULL" << endl;
                         }
 
                         rootNode = static_cast<node*> (tempNode);
@@ -704,16 +751,16 @@ namespace nwt {
                 slot = -1;
 
             }
-            cout << "FIND:: found the leaf I hope" << endl;
+            //cout << "FIND:: found the leaf I hope" << endl;
             leafNode* lnode = static_cast<leafNode*> (rootNode);
 
             while (lnode != NULL) {
                 //if we are out of the following loop it means we have reached a leaf node, return false
-                cout << "lnode key count is " << lnode->keyCount() << endl;
+                //cout << "lnode key count is " << lnode->keyCount() << endl;
                 for (i = 0; i < lnode->keyCount(); i++) {
-                    cout << lnode->keySlots[i] << " is current slot key and  key " << k << " is query key" << endl;
+                    //cout << lnode->keySlots[i] << " is current slot key and  key " << k << " is query key" << endl;
                     if (keygreaterequal(lnode->keySlots[i], k)) {
-                        cout << lnode->keySlots[i] << " is greater or equal to " << k << endl;
+                        //cout << lnode->keySlots[i] << " is greater or equal to " << k << endl;
                         return lnode;
                         //return std::pair<iterator, bool>(iterator(lNode, i), true);
                     }
@@ -721,7 +768,7 @@ namespace nwt {
 
                 }
                 if (lnode->isfull()) {
-                    cout << "moving to nextleaf, check next leaf" << endl;
+                    //cout << "moving to nextleaf, check next leaf" << endl;
                     if (lnode->nextLeaf != NULL)
                         lnode = static_cast<leafNode*> (lnode->nextLeaf);
                     else
@@ -729,7 +776,7 @@ namespace nwt {
                 } else
                     return lnode;
             }
-            cout << "returning null" << endl;
+            //cout << "returning null" << endl;
             return lnode;
             // return std::pair<iterator, bool>(iterator(lNode, i-1), false);
 
@@ -755,24 +802,59 @@ namespace nwt {
             // return false;
 
         }
+        inline std::pair<data_type, bool> get(keytype k) {
+            leafNode* ret;
+            ret = find(k);
+            string empty = "";
 
+            if (ret == NULL)
+                return std::pair<data_type, bool>(empty, false);
+            for (int i = 0; i < ret->keyCount(); i++) {
+                if (keyequal(ret->keySlots[i], k) > 0)
+                    return std::pair<data_type, bool>(ret->dataSlots[i], true);
+            }
+            
+            return std::pair<data_type, bool>(empty, false);
+        }
+        inline iterator getNext(keytype k)
+        {
+	    leafNode* l;
+	    l = find(k);
+	    std::pair<iterator, bool> ret;
+	    
+            string empty = "";
+
+            if (ret == NULL)
+                return std::pair<data_type, bool>(empty, false);
+            for (int i = 0; i < ret->keyCount(); i++) {
+                if (keyequal(ret->keySlots[i], k) > 0)
+                    //return std::pair<data_type, bool>(ret->dataSlots[i], true);
+		{
+		    iterator(l, i);
+		}
+	    
+	    }
+            
+	    return end();
+
+        }
         /**
          * Insert is a pair into the tree
          *
          *
          **/
-        std::pair<iterator, bool> insert(keytype k, data_type data) {
-            std::pair<iterator, bool> ret;
-
+        int insert(keytype k, data_type data) {
+          
             leafNode* n = NULL;
 
-            cout << "in global insert function" << endl;
+            //cout << "in global insert function" << endl;
             if (root == NULL) {
-                cout << "making new root" << endl;
+                //cout << "making new root" << endl;
                 makeroot(k, data);
-                ret = std::pair<iterator, bool>(iterator(static_cast<leafNode*> (root), 0), true);
+                //ret = std::pair<iterator, bool>(iterator(static_cast<leafNode*> (root), 0), true);
                 upkeycount();
-                return ret;
+                //return ret;
+                return 1;
             }
 
             n = find(k);
@@ -787,12 +869,18 @@ namespace nwt {
             //  n = (ret.first).getleafNode();
 
             //n =(leafNode*)  (iter.getleafNode());
-
-            if ((insertleafpair(n, k, data)) < 0) {
-                cout << "cannot insert in initial first node, it must be full" << endl;
+            int out = insertleafpair(n, k, data);
+            if(out == -2)
+            {
+                //duplicate was found
+                //return std::pair<iterator, bool>(iterator(static_cast<leafNode*> (root), false), 0);
+                return out;
+            }
+            if (out == -1) {
+                //cout << "cannot insert in initial first node, it must be full" << endl;
                 //leafnode is full
                 if (n->keyCount() == bt_innernodemax) {
-                    cout << "splitting node" << endl;
+                    //cout << "splitting node" << endl;
                     //this will lead to a split of the leaf node.
                     leafNode* ln = new leafNode;
                     leafNode* lp = new leafNode;
@@ -817,7 +905,7 @@ namespace nwt {
                             //keep i in the same pos
                             if (i > 0)
                                 i--;
-                            cout << " adding middle key in slot " << j << endl;
+                            //cout << " adding middle key in slot " << j << endl;
                         } else if (i < (n->keyCount() / 2)) {
 
                             insertleafKeyAt(ln, n->keySlots[i], slot);
@@ -831,18 +919,18 @@ namespace nwt {
 
                     }
                     if (added != 1) {
-                        cout << " adding middle key at the end " << endl;
+                        //cout << " adding middle key at the end " << endl;
                         insertleafKeyAt(lp, k, j);
                         insertleafDataAt(lp, data, j);
                     }
                     slot = 1;
                     keytype kp = lp->keySlots[0];
 
-                    cout << "split key kp is " << kp << endl;
+                    //cout << "split key kp is " << kp << endl;
                     upkeycount();
                      if(ln->isleaf())
                      {
-                                cout << "connecting leaves of spliting leafs" << endl;
+                                //cout << "connecting leaves of spliting leafs" << endl;
                                    ln->nextLeaf = lp;
                                    lp->prevLeaf = ln;
                      }
@@ -851,25 +939,28 @@ namespace nwt {
                     //assert(oldloc >= 0);
                     //key is pushed up to parent.
                     insert_in_parent(n->parent, ln, kp, lp);
-                    cout << "out of insert parent" << endl;
-                    delete n;
+                    //cout << "out of insert parent" << endl;
+                    freeNode(n);
                     n = NULL;
-                    return std::pair<iterator, bool> (iterator(static_cast<leafNode*> (root), 0), true);
+                    //return std::pair<iterator, bool> (iterator(static_cast<leafNode*> (root), 0), true);
+                    return 1;
                 }
 
             }
             upkeycount();
-            return std::pair<iterator, bool> (iterator(static_cast<leafNode*> (btree::root), 0), true);
+            //return std::pair<iterator, bool> (iterator(static_cast<leafNode*> (btree::root), 0), true);
+            return 1;
         }
 
         void makeroot(keytype k, data_type data) {
             leafNode* l;
-            cout << "MAKEROOT:: making root" << endl;
+            //cout << "MAKEROOT:: making root" << endl;
             l = new leafNode;
             l->initialize();
             l->setIsRoot(true);
             l->parent = NULL;
             insertleafpair(l, k, data);
+	    headleaf = l;
             root = static_cast<node*> (l);
         }
 
@@ -883,12 +974,12 @@ namespace nwt {
             //initialize node
             //tnode->initialize();
             keytype kp;
-            cout << "inserting in parent" << endl;
+            //cout << "inserting in parent" << endl;
             if ((p != NULL)) {
 
-                cout << "there is a  parent " << endl;
+                //cout << "there is a  parent " << endl;
                 if ((p->numChildren < bt_innernodemax+1)) {
-                    cout << "parent is not full, inserting pair " << endl;
+                    //cout << "parent is not full, inserting pair " << endl;
                     //decrement number of Children because 1 is going to be overwritten
                     p->numChildren--;
 
@@ -896,15 +987,15 @@ namespace nwt {
                     if (loc >= 1) {
                         insertInnerNodeChildAt(p, Nprime, loc + 1);
                         //p->numChildren--;
-                        //cout << "replace old N with new N" << endl;
+                        ////cout << "replace old N with new N" << endl;
 
                     }
 
-                    cout << "loc is " << loc << endl;
+                    //cout << "loc is " << loc << endl;
 
                     return;
                 } else {
-                    cout << "parent is full" << endl;
+                    //cout << "parent is full" << endl;
                     innerNode* pNode = new innerNode;
                     pNode->initialize();
                     innerNode* ppNode = new innerNode;
@@ -916,7 +1007,7 @@ namespace nwt {
                     int slot = 0;
                     int added = -1;
                     int i = 0;
-                    cout << "keycount of parent is " << p->keyCount() << endl;
+                    //cout << "keycount of parent is " << p->keyCount() << endl;
                     for (i = 0, slot = 0; i < p->keyCount(); i++, slot++) {
                         //insert Np in the nodes
                         //try to insert the pushed up child
@@ -927,14 +1018,14 @@ namespace nwt {
                                 insertInnerNodeChildAt(pNode, (N), slot);
                                 insertInnerNodeChildAt(pNode, (Nprime), slot + 1);
                                 added = slot;
-                                cout << " adding middle key in first node slot " << slot << endl;
+                                //cout << " adding middle key in first node slot " << slot << endl;
 
                             } else {
 
                                 insertInnerNodeKeyAt(pNode, k, j);
                                 insertInnerNodeChildAt(pNode, (N), j);
                                 insertInnerNodeChildAt(pNode, (Nprime), j + 1);
-                                cout << " adding middle key in second node slot " << j << endl;
+                                //cout << " adding middle key in second node slot " << j << endl;
                                 j++;
                                 added = j;
                             }
@@ -945,7 +1036,7 @@ namespace nwt {
 
                         }
                         if (i < (p->keyCount() / 2 + 1) && slot == i) {
-                            cout << "inserting in first node" << endl;
+                            //cout << "inserting in first node" << endl;
                             insertInnerNodeKeyAt(pNode, p->keySlots[i], slot);
                             insertInnerNodeChildAt(pNode, static_cast<node*> (p->firstChild[i]), slot);
 
@@ -953,7 +1044,7 @@ namespace nwt {
 
 
                         if (i > (p->keyCount() / 2)) {
-                            cout << "inserting in second node" << endl;
+                            //cout << "inserting in second node" << endl;
                             insertInnerNodeKeyAt(ppNode, p->keySlots[i], j);
                             insertInnerNodeChildAt(ppNode, static_cast<node*> (p->firstChild[i]), j);
                             //keep chain
@@ -962,7 +1053,7 @@ namespace nwt {
                         }
 
                         if (i == (p->keyCount() / 2 + 1)) {
-                            cout << "delete last key in first node" << endl;
+                            //cout << "delete last key in first node" << endl;
                             kp = pNode->keySlots[i-1];
                             pNode->slotsinuse--;
                             if(p->firstChild[i]->isleaf())
@@ -981,38 +1072,38 @@ namespace nwt {
                     if (p->firstChild[i] != NULL) {
                         //insert last pointer in ppNode
                         insertInnerNodeChildAt(ppNode, static_cast<node*> (p->firstChild[i]), j);
-                        cout << "insert last parent inner node into child, slot is " << j << endl;
-                        innerNode* temp = static_cast<innerNode*> (p->firstChild[i]);
-                        cout << "Child's first key is " << temp->keySlots[0] << endl;
-                        cout << "ppNode has last key as " << ppNode->keySlots[ppNode->keyCount() - 1] << endl;
+                        //cout << "insert last parent inner node into child, slot is " << j << endl;
+                        //innerNode* temp = static_cast<innerNode*> (p->firstChild[i]);
+                        //cout << "Child's first key is " << temp->keySlots[0] << endl;
+                        //cout << "ppNode has last key as " << ppNode->keySlots[ppNode->keyCount() - 1] << endl;
                         //j++;
 
                     } else {
-                        cout << "last child is null " << endl;
+                        //cout << "last child is null " << endl;
                     }
                     if (added < 0) {
-                        cout << "adding new key and children at the end" << endl;
+                        //cout << "adding new key and children at the end" << endl;
 
                         //decrease the number of children because it is going to be overwritten
                         ppNode->numChildren--;
                         insertInnerNodeChildAt(ppNode, N, j);
                         insertInnerNodeKeyAt(ppNode, k, j);
-                        cout << "insert child and key at slot " << j << endl;
+                        //cout << "insert child and key at slot " << j << endl;
                         insertInnerNodeChildAt(ppNode, (Nprime), j + 1);
-                        cout << "adding key " << k << " at then end " << j + 1 << endl;
+                        //cout << "adding key " << k << " at then end " << j + 1 << endl;
                         assert(Nprime != NULL);
 
                     }
                   
                     //insert in parent
                     k = pNode->keySlots[pNode->keyCount()];
-                    cout << "key to push up to parent is " << kp << endl;
+                    //cout << "key to push up to parent is " << kp << endl;
 
                     insert_in_parent(p->parent, pNode, kp, ppNode);
                 }
 
             } else {
-                cout << "making new root to insert" << endl;
+                //cout << "making new root to insert" << endl;
                 //there is no parent
                 // assert(N->isRoot());
                 tnode = new innerNode;
@@ -1045,10 +1136,10 @@ namespace nwt {
 
             if (l->slotsinuse == 0)
                 return 0;
-            cout << "In leafnode find key Loc" << endl;
+            //cout << "In leafnode find key Loc" << endl;
             for (i = 0; i < l->slotsinuse; i++) {
                 if (keylessequal(k, l->keySlots[i])) {
-                    cout << "found the key" << endl;
+                    //cout << "found the key" << endl;
                     return i;
                 }
 
@@ -1067,7 +1158,7 @@ namespace nwt {
             int loc = -1;
 
             if (leaf == NULL) {
-                cout << "key not in tree" << endl;
+                //cout << "key not in tree" << endl;
                 return -1;
             } else {
                 if ((loc = deleteleafpair(leaf, k, data)) < 0) {
@@ -1085,57 +1176,93 @@ namespace nwt {
             leafNode* l = NULL;
             l = find(k);
 
-            cout << "in erase funtion" << endl;
+            //cout << "in erase funtion" << endl;
             if (l == NULL) {
-                cout << " key not in tree" << endl;
+                //cout << " key not in tree" << endl;
                 return -1;
             } else {
                 int loc = findKeyEqual(l, k);
-                cout << "key is in location " << loc << endl;
+		if(loc < 0)
+		    return loc;
+                //cout << "key is in location " << loc << endl;
                 if (keyequal(k, l->keySlots[loc]) > 0) {
-                    cout << "found a key equal, now deleting it" << endl;
+                    //cout << "found a key equal, now deleting it" << endl;
                     for (int i = loc; i < l->keyCount() - 1; i++) {
                         l->keySlots[i] = l->keySlots[i + 1];
                     }
                     l->slotsinuse--;
                     downkeycount();
                     if (!(l->isRoot())) {
-                        cout << "not a root, balance it" << endl;
+                        //cout << "not a root, balance it" << endl;
                         balancetree(l, loc);
                     } else {
-                        cout << "leaf is root" << endl;
+                        //cout << "leaf is root" << endl;
+                    }
+                    return loc;
+                }
+            }
+                    return -1;
+            }
+            /**
+             *erasepair - erase a key and a data pair from the tree.
+             */
+            int erasepair(keytype k, data_type d)  {
+            leafNode* l = NULL;
+            l = find(k);
+
+            //cout << "in erase funtion" << endl;
+            if (l == NULL) {
+                //cout << " key not in tree" << endl;
+                return -1;
+            } else {
+                int loc = findKeyEqual(l, k);
+		if(loc < 0)
+		    return loc;
+                //cout << "key is in location " << loc << endl;
+                if (keyequal(k, l->keySlots[loc]) > 0 && (d==l->dataSlots[l])) {
+                    //cout << "found a key equal, now deleting it" << endl;
+                    for (int i = loc; i < l->keyCount() - 1; i++) {
+                        l->keySlots[i] = l->keySlots[i + 1];
+                    }
+                    l->slotsinuse--;
+                    downkeycount();
+                    if (!(l->isRoot())) {
+                        //cout << "not a root, balance it" << endl;
+                        balancetree(l, loc);
+                    } else {
+                        //cout << "leaf is root" << endl;
                     }
                     return loc;
                 }
             }
 
-            return -1;
+                    return -1;
         }
 
         void balancetree(leafNode* leaf, int loc) {
             int parentloc = findInnerNodeLoc(static_cast<innerNode*>(leaf->parent), static_cast<node*>(leaf));
-            cout << "attemping to  balance tree, loc is " << parentloc << endl;
+            //cout << "attemping to  balance tree, loc is " << parentloc << endl;
             //check for underflow...we need to rebalance tree
             if (leaf->isunderflow() ) {
-                cout << "the leaf underflows" << endl;
+                //cout << "the leaf underflows" << endl;
                 //get parent
                 // innerNode* pparent = static_cast<innerNode*>(leaf->parent);
 
                 //check neighbors
                 if ((leaf->prevLeaf != NULL) && (parentloc > 0) ) {
-                     cout << "prev leaf" << endl;
+                     //cout << "prev leaf" << endl;
                     leafNode* prev = static_cast<leafNode*> (leaf->prevLeaf);
 
                     //if they can merge add them
                     if ((prev->keyCount() + leaf->keyCount()) < bt_leafnodemax) {
-                        cout << "prev leaf merging leafs" << endl;
+                        //cout << "prev leaf merging leafs" << endl;
                         int loc = findInnerNodeLoc(static_cast<innerNode*>(leaf->parent), static_cast<node*> (leaf));
                         for (int i = 0; i < leaf->keyCount(); i++) {
                             insertleafpair(prev, leaf->keySlots[i], leaf->dataSlots[i]);
                         }
                         
                         assert(loc >= 0);
-                        cout << "loc returned is " << parentloc << endl;
+                        //cout << "loc returned is " << parentloc << endl;
                         loc = parentloc;
                         innerNode* p = static_cast<innerNode*> (leaf->parent);
                         keytype k;
@@ -1146,16 +1273,16 @@ namespace nwt {
                         }
                         else
                             k = p->keySlots[loc-1];
-                        cout << "key is " << k << endl;
+                        //cout << "key is " << k << endl;
                         deleteInnerNode(static_cast<innerNode*> (leaf->parent), k, static_cast<node*> (leaf));
                         
 
                     } else //borrow key data pair
                     {
-                        cout << "borrowing from previous neighbor" << endl;
+                        //cout << "borrowing from previous neighbor" << endl;
                         assert(leaf->keyCount() < prev->keyCount());
                         //move last key in prev to leaf
-                        insertleafpair(leaf, prev->keySlots[prev->keyCount() - 1], prev->keySlots[prev->keyCount() - 1]);
+                        insertleafpair(leaf, prev->keySlots[prev->keyCount() - 1], prev->dataSlots[prev->keyCount() - 1]);
 
                         innerNode* p = static_cast<innerNode*> (leaf->parent);
                         keytype replacee = p->keySlots[parentloc-1];
@@ -1169,18 +1296,19 @@ namespace nwt {
                     }
 
                 } else if (leaf->nextLeaf != NULL) {
-                     cout << "nextleaf" << endl;
+                     //cout << "nextleaf" << endl;
                     leafNode* next = static_cast<leafNode*> (leaf->nextLeaf);
                     if ((next->keyCount() + leaf->keyCount()) < bt_leafnodemax) //if not full move key
                     {
-                        cout << "nextleaf, merging leafs" << endl;
+                        //cout << "nextleaf, merging leafs" << endl;
                         for (int i = 0; i < leaf->keyCount(); i++) {
-                            cout << "inserting key " << leaf->keySlots[i] << " to next leaf" << endl;
+                            //cout << "inserting key " << leaf->keySlots[i] << " to next leaf" << endl;
                             insertleafpair(next, leaf->keySlots[i], leaf->dataSlots[i]);
                         }
                         int loc = findInnerNodeLoc(static_cast<innerNode*>(leaf->parent), static_cast<node*> (leaf));
+                        
                         assert(loc >= 0);
-                        cout << "inner node loc is " << loc << endl;
+                        //cout << "inner node loc is " << loc << endl;
                         innerNode* p = static_cast<innerNode*> (leaf->parent);
                         keytype k;
                         if (loc < p->numChildren) {
@@ -1193,10 +1321,10 @@ namespace nwt {
                         //replacekey(next->parent, next->keySlots[1], next->keySlots[0]);
                     } else //borrow key data pair
                     {
-                        cout << "borrowing for next neighbor" << endl;
+                        //cout << "borrowing for next neighbor" << endl;
                         assert(leaf->keyCount() < next->keyCount());
                         //move last key in prev to leaf
-                        insertleafpair(leaf, next->keySlots[0], next->keySlots[0]);
+                        insertleafpair(leaf, next->keySlots[0], next->dataSlots[0]);
 
                         replacekey(next->parent, next->keySlots[0], next->keySlots[1]);
                         deleteleafpair(next, next->keySlots[0], next->dataSlots[0]);
@@ -1218,18 +1346,18 @@ namespace nwt {
             innerNode* inner = static_cast<innerNode*> (n);
 
             if (inner == NULL) {
-                cout << "replacekey:: inner is null" << endl;
+                //cout << "replacekey:: inner is null" << endl;
                 return -1;
             }
 
             for (int i = 0; i < inner->keyCount(); i++) {
                 if (keyequal(inner->keySlots[i], replacee) > 0) {
-                    cout << "replacing key " << replacee << " with " << replacer << endl;
+                    //cout << "replacing key " << replacee << " with " << replacer << endl;
                     inner->keySlots[i] = replacer;
                     return 1;
                 }
             }
-            cout << "did not find key to replace" << endl;
+            //cout << "did not find key to replace" << endl;
             return -1;
         }
 
@@ -1238,16 +1366,16 @@ namespace nwt {
             keytype k;
             loc = findInnerNodeLoc(N, P);
             int keyloc = findInnerNodeKey(N, kP);
-            cout << "deleteInnerNode:: key to delete is in location " << keyloc << endl;
+            //cout << "deleteInnerNode:: key to delete is in location " << keyloc << endl;
             if (loc < 0) {
-                cout << "deleteInnerNode:: cannot find inner node" << endl;
+                //cout << "deleteInnerNode:: cannot find inner node" << endl;
                 return loc;
             }
 
             k = N->keySlots[keyloc];
-            cout << "key to delete is " << k << endl;
+            //cout << "key to delete is " << k << endl;
             
-            cout << "deleteInnnerNode: N has " << N->numChildren << " children" << endl;
+            //cout << "deleteInnnerNode: N has " << N->numChildren << " children" << endl;
             //this is where actuall deletion takes place
            if (loc < N->numChildren) {
                if((loc < N->numChildren)  && (loc > 0))
@@ -1256,22 +1384,22 @@ namespace nwt {
                           leafNode* cur = static_cast<leafNode*> (N->firstChild[loc]);
                           leafNode* prev = static_cast<leafNode*> (N->firstChild[loc-1]);
                           prev->nextLeaf = cur->nextLeaf;
-                          if(cur->nextLeaf == NULL)
-                          cout << "deleteInnnerNode: next leaf is NULL " << endl;
+                          //if(cur->nextLeaf == NULL)
+                          //cout << "deleteInnnerNode: next leaf is NULL " << endl;
                      }
                    
                }
-                delete N->firstChild[loc];
-                N->firstChild[loc] = NULL;
-                cout << "deleteInnerNode:: deleting node at loc " << loc << endl;
-                cout << "shift remaining nodes" << endl;
-                cout << "keycount is " << N->keyCount() << endl;
+                freeNode(N->firstChild[loc]);
+                
+                //cout << "deleteInnerNode:: deleting node at loc " << loc << endl;
+                //cout << "shift remaining nodes" << endl;
+                //cout << "keycount is " << N->keyCount() << endl;
                 int i;
                 int kloc;
                 //shift remaining nodes.
                 for(kloc = keyloc; kloc < N->keyCount()-1; kloc++)
                 {
-                    cout << "deleteInnerNode:: shifting key to location " << kloc << endl;
+                    //cout << "deleteInnerNode:: shifting key to location " << kloc << endl;
 
                     N->keySlots[kloc] = N->keySlots[kloc + 1];
 
@@ -1279,29 +1407,29 @@ namespace nwt {
                 }
                 for (i = loc; i < N->keyCount() - 1; i++) {
                     assert(i + 1 < N->keyCount());
-                    cout << "deleteInnerNode:: shifting to location " << i << endl;
+                    //cout << "deleteInnerNode:: shifting to location " << i << endl;
 
                     N->firstChild[i] = N->firstChild[i + 1];
 
-                    cout << "cur loc is  " << i << endl;
+                    //cout << "cur loc is  " << i << endl;
                    if ((N->firstChild[i])->isleaf()) {
                         leafNode* cur = static_cast<leafNode*> (N->firstChild[i]);
                         if (i - 1 >= 0) {
                             leafNode* prev = static_cast<leafNode*> (N->firstChild[i - 1]);
-                            cout << "setting previous node" << endl;
+                            //cout << "setting previous node" << endl;
                             cur->prevLeaf = prev;
                             prev->nextLeaf = cur;
-                             cout << "last key in prev is " << prev->keySlots[prev->keyCount()-1] << endl;
-                            cout << "first key in cur is " << cur->keySlots[0] << endl;
+                             //cout << "last key in prev is " << prev->keySlots[prev->keyCount()-1] << endl;
+                            //cout << "first key in cur is " << cur->keySlots[0] << endl;
                             assert(prev != NULL);
                             
                         } else {
                             cur->prevLeaf = NULL;
-                            cout << "setting prev as NULL" << endl;
+                            //cout << "setting prev as NULL" << endl;
                         }
 
                     } else {
-                        cout << "N isn't leaf" << endl;
+                        //cout << "N isn't leaf" << endl;
                     }
 
                 }
@@ -1309,7 +1437,7 @@ namespace nwt {
                 if (N->numChildren > N->keyCount()) {
                    if(loc+1 < N->numChildren)
                     {
-                         cout << "setting the last child at loc " << i << endl;
+                         //cout << "setting the last child at loc " << i << endl;
                     
                         N->firstChild[i] = N->firstChild[i + 1];
                         N->firstChild[i + 1] = NULL;
@@ -1318,17 +1446,17 @@ namespace nwt {
                         leafNode* cur = static_cast<leafNode*> (N->firstChild[i]);
                         if (i - 1 >= 0) {
                             leafNode* prev = static_cast<leafNode*> (N->firstChild[i - 1]);
-                            cout << "setting previous node" << endl;
+                            //cout << "setting previous node" << endl;
                             cur->prevLeaf = prev;
                             prev->nextLeaf = cur;
-                             cout << "last key in prev is " << prev->keySlots[prev->keyCount()-1] << endl;
-                            cout << "first key in cur is " << cur->keySlots[0] << endl;
+                             //cout << "last key in prev is " << prev->keySlots[prev->keyCount()-1] << endl;
+                            //cout << "first key in cur is " << cur->keySlots[0] << endl;
                             assert(prev != NULL);
 
                         }
 
                     } else {
-                        cout << "N isn't leaf" << endl;
+                        //cout << "N isn't leaf" << endl;
                     }
 
                    }
@@ -1337,7 +1465,7 @@ namespace nwt {
                
                 N->slotsinuse--;
                 N->numChildren--;
-                cout << "num of children after delete is " << N->numChildren << endl;
+                //cout << "num of children after delete is " << N->numChildren << endl;
             }
 
             innerNode* child = static_cast<innerNode*> (N);
@@ -1346,9 +1474,9 @@ namespace nwt {
             innerNode* prev = NULL;
 
             if (N->isRoot()) {
-                cout << "parent is root" << endl;
+                //cout << "parent is root" << endl;
                 if (N->numChildren == 1) {
-                    cout << "making child root" << endl;
+                    //cout << "making child root" << endl;
                     innerNode* child = static_cast<innerNode*> (N->firstChild[0]);
                     child->parent = NULL;
                     child->setIsRoot(true);
@@ -1359,10 +1487,10 @@ namespace nwt {
             }
             //balance nodes
             else if(child->isunderflow()) {
-                cout << "N parent is underflow" << endl;
+                //cout << "N parent is underflow" << endl;
                 loc = findInnerNodeLoc(parent, child);
                 
-                cout << "child loc is " << loc << endl;
+                //cout << "child loc is " << loc << endl;
                 
                 if (loc - 1 >= 0) {
                     prev = static_cast<innerNode*> (parent->firstChild[loc - 1]);
@@ -1373,47 +1501,47 @@ namespace nwt {
                 }
                 if(loc == parent->numChildren-1)
                     loc = loc-1;
-                cout << "key is " << parent->keySlots[loc] << endl;
+                //cout << "key is " << parent->keySlots[loc] << endl;
                 if (next != NULL) {
                     if ((next->numChildren + child->numChildren) <= (bt_innernodemax+1)) {
-                        cout << "merging parent with next neighbor" << endl;
-                        cout << "neighbor has children count of " << next->numChildren << endl;
-                        cout << "neighbor has key count of " << next->keyCount() << endl;
-                           cout << "keey in loc is " << parent->keySlots[loc] << endl;
-                                cout << "keey in loc+1 is " << parent->keySlots[loc+1] << endl;
+                        //cout << "merging parent with next neighbor" << endl;
+                        //cout << "neighbor has children count of " << next->numChildren << endl;
+                        //cout << "neighbor has key count of " << next->keyCount() << endl;
+                           //cout << "keey in loc is " << parent->keySlots[loc] << endl;
+                                //cout << "keey in loc+1 is " << parent->keySlots[loc+1] << endl;
                       
                         //leafNode* nextChild = static_cast<leafNode*>(next->firstChild[0]);
                         insertInnerNodeKeyAt(next, parent->keySlots[loc], 0);
                         insertInnerNodeChildAt(next, getChild(child, child->numChildren-1), 0);
                         for (int i = child->keyCount()-1; i >= 0; i--) {
-                            cout << "inserting node and key from loc " << i << " in next node" << endl;
+                            //cout << "inserting node and key from loc " << i << " in next node" << endl;
                             insertInnerNodeKeyAt(next, child->keySlots[i], 0);
                             insertInnerNodeChildAt(next, child->firstChild[i], 0);
 
                         }
                         keytype kp =  parent->keySlots[loc];
-                         cout << "no more children delete child" << endl;
+                         //cout << "no more children delete child" << endl;
                          deleteInnerNode(static_cast<innerNode*>(child->parent), kp, child);
                         
                     } else {
-                        cout << "redistribute from next" << endl;
-                        cout << "keey in loc is " << parent->keySlots[loc] << endl;
-                                cout << "keey in loc+1 is " << parent->keySlots[loc+1] << endl;
+                        //cout << "redistribute from next" << endl;
+                        //cout << "keey in loc is " << parent->keySlots[loc] << endl;
+                                //cout << "keey in loc+1 is " << parent->keySlots[loc+1] << endl;
                         insertInnerNodeKeyAt(child, parent->keySlots[loc], child->keyCount());
                         insertInnerNodeChildAt(child, next->firstChild[0], child->numChildren);
 
                         
-                        cout << "removing redistributed child from next node" << endl;
+                        //cout << "removing redistributed child from next node" << endl;
                         replacekey(next->parent, parent->keySlots[loc], next->keySlots[0]);
                         int i = 0;
                         for (i = 0; i < next->keyCount() - 1; i++) {
-                            cout << "shifting key and child to " << i << endl;
+                            //cout << "shifting key and child to " << i << endl;
                             next->keySlots[i] = next->keySlots[i + 1];
                             next->firstChild[i] = next->firstChild[i + 1];
 
                         }
                         if (next->numChildren > next->keyCount()) {
-                            cout << "shifting last child" << endl;
+                            //cout << "shifting last child" << endl;
                             next->firstChild[i] = next->firstChild[i + 1];
                         }
                         next->slotsinuse--;
@@ -1422,16 +1550,10 @@ namespace nwt {
 
                     }
                 } else if (prev != NULL) {
-                    cout << "merging parent with previous neighbor" << endl;
+                    //cout << "merging parent with previous neighbor" << endl;
                     if ((prev->numChildren + child->numChildren) <= (bt_innernodemax+1)) {
                         //merge together
-
-                        cout << "neighbor has children count of " << prev->numChildren << endl;
-                        cout << "neighbor has key count of " << prev->keyCount() << endl;
-                           cout << "keey in loc is " << parent->keySlots[loc] << endl;
-                                cout << "keey in loc+1 is " << parent->keySlots[loc+1] << endl;
-
-                         insertInnerNodeKeyAt(prev, parent->keySlots[loc], prev->keyCount());
+                        insertInnerNodeKeyAt(prev, parent->keySlots[loc], prev->keyCount());
                          insertInnerNodeChildAt(prev, child->firstChild[0], prev->numChildren);
                         for (int i = 0; i < child->keyCount(); i++) {
                             insertInnerNodeKeyAt(prev, child->keySlots[i], prev->keyCount());
@@ -1439,21 +1561,21 @@ namespace nwt {
 
                         }
                          keytype kp =  parent->keySlots[loc];
-                         cout << "no more children delete child" << endl;
+                         //cout << "no more children delete child" << endl;
                          deleteInnerNode(static_cast<innerNode*>(child->parent), kp , child);
 
                     } else {
-                        cout << "redistribute from prev" << endl;
+                        //cout << "redistribute from prev" << endl;
                        
                         insertInnerNodeKeyAt(child, parent->keySlots[loc], child->keyCount());
                         insertInnerNodeChildAt(child, prev->firstChild[prev->numChildren-1], 0);
 
 
-                        cout << "removing redistributed child from next node" << endl;
+                        //cout << "removing redistributed child from next node" << endl;
                         replacekey(next->parent, parent->keySlots[loc], prev->keySlots[prev->keyCount()-1]);
 
                        
-                        cout << "removing redistributed child from prev node" << endl;
+                        //cout << "removing redistributed child from prev node" << endl;
                         prev->firstChild[prev->numChildren - 1] = NULL;
                         prev->numChildren--;
                         prev->slotsinuse--;
@@ -1475,6 +1597,20 @@ namespace nwt {
 
         void downkeycount() {
             totalkeycount--;
+        }
+
+        //Free nodes
+        inline void freeNode(node* free)
+        {
+            if(free->isleaf())
+            {
+                delete static_cast<leafNode*>(free);
+            }
+            else
+            {//if node is inner node
+                delete static_cast<innerNode*>(free);
+            }
+
         }
     private:
         // *** Template Magic to Convert a pair or key/data types to a value_type
